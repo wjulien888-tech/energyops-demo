@@ -1,0 +1,12 @@
+.DS_Store
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+__pycache__/
+.venv/
+local-data/
+model-weights/
+private-data/
+*.tar.gz
