@@ -20,7 +20,7 @@ const owners = {
   reports: "梁紫昱 · 各模块共同提供依据",
 };
 const S = {
-  page: "overview",
+  page: "forecast",
   scenario: "sunny",
   capacity: 320,
   power: 60,
@@ -36,6 +36,7 @@ const S = {
   missing: false,
   tour: null,
   step: 0,
+  outputs: { forecast: null, parameters: null },
 };
 let data = Engine.dataset(),
   draft = Engine.plans(data, S);
@@ -48,11 +49,102 @@ const colors = {
   discharge: "#ca9d64",
   actual: "#b5c1b7",
 };
+// Output readiness belongs to the current input snapshot, not to page visits.
+function validInputSeries(values) {
+  return (
+    Array.isArray(values) &&
+    values.length === 24 &&
+    values.every((value) => Number.isFinite(value) && value >= 0)
+  );
+}
+function forecastInputKey() {
+  return JSON.stringify([S.date, data.hours, data.load, data.pv]);
+}
+function parameterInputKey() {
+  return JSON.stringify([S.date, S.capacity, S.power, data.carbon, data.price]);
+}
+function forecastReady() {
+  return (
+    validInputSeries(data.load) &&
+    validInputSeries(data.pv) &&
+    S.outputs.forecast === forecastInputKey()
+  );
+}
+function parametersReady() {
+  return (
+    !S.missing &&
+    validInputSeries(data.carbon) &&
+    validInputSeries(data.price) &&
+    Number.isFinite(S.capacity) &&
+    S.capacity >= 100 &&
+    S.capacity <= 1000 &&
+    Number.isFinite(S.power) &&
+    S.power >= 20 &&
+    S.power <= 100 &&
+    S.outputs.parameters === parameterInputKey()
+  );
+}
+function dispatchReady() {
+  return forecastReady() && parametersReady();
+}
+function recordInputsReady(record) {
+  return (
+    dispatchReady() &&
+    record?.inputOutputs?.forecast === S.outputs.forecast &&
+    record?.inputOutputs?.parameters === S.outputs.parameters
+  );
+}
+function invalidateOutputs(kind = "all") {
+  if (kind === "all" || kind === "forecast") S.outputs.forecast = null;
+  if (kind === "all" || kind === "parameters") S.outputs.parameters = null;
+  S.current = null;
+  S.fault = null;
+  // Preserve the edited field's focus; a full render follows query/output.
+  if (!dispatchReady()) {
+    document.querySelectorAll("[data-dispatch-entry]").forEach((button) => {
+      button.disabled = true;
+    });
+    if (S.page === "dispatch") {
+      document
+        .querySelectorAll(".scheme-card, .dispatch-curves, .bottom-metrics")
+        .forEach((element) => {
+          element.hidden = true;
+        });
+    }
+  }
+}
+function outputForecast() {
+  if (!applyFilters(true)) return false;
+  if (!validInputSeries(data.load) || !validInputSeries(data.pv)) {
+    toast("预测数据不完整，未输出");
+    return false;
+  }
+  S.outputs.forecast = forecastInputKey();
+  render();
+  toast("预测数据已输出");
+  return true;
+}
+function toggleMissingInput() {
+  S.missing = !S.missing;
+  invalidateOutputs("parameters");
+  render();
+}
 function badge(t, c = "") {
   return `<span class="badge ${c}">${t}</span>`;
 }
 function btn(t, action, cl = "", disabled = false) {
-  return `<button class="btn ${cl}" onclick="${action}" ${disabled ? "disabled" : ""}>${t}</button>`;
+  const guarded =
+    /go\(['"]dispatch['"]\)|runPlan\(|generateFromForm\(|injectFault\(|replan\(|openRecord\(/.test(
+      action,
+    );
+  if (guarded && !dispatchReady()) disabled = true;
+  const recordId = action.match(/openRecord\(['"]([^'"]+)['"]\)/)?.[1];
+  if (
+    recordId &&
+    !recordInputsReady(S.records.find((record) => record.id === recordId))
+  )
+    disabled = true;
+  return `<button class="btn ${cl}" ${guarded ? "data-dispatch-entry" : ""} onclick="${action}" ${disabled ? "disabled" : ""}>${t}</button>`;
 }
 function toast(t) {
   $("#toast").textContent = t;
@@ -61,6 +153,7 @@ function toast(t) {
   window.tt = setTimeout(() => $("#toast").classList.remove("show"), 3000);
 }
 function go(page) {
+  if (page === "dispatch" && !dispatchReady()) return false;
   S.page = page;
   S.answer = "";
   render();
@@ -209,7 +302,7 @@ function teamCards() {
     .join("")}</div>`;
 }
 function dataSettings() {
-  return `<div class="settings"><div class="field"><label for="day">分析日期 / 场景标签</label><input id="day" type="date" value="${S.date}" onchange="change('date',this.value)"></div><div class="field"><label for="weather">天气场景</label><select id="weather" onchange="change('scenario',this.value)"><option value="sunny" ${S.scenario === "sunny" ? "selected" : ""}>晴天 · 合成</option><option value="cloudy" ${S.scenario === "cloudy" ? "selected" : ""}>多云 · 合成</option></select></div><div class="field"><label>数据版本</label><div style="padding:10px 0">DEMO-D${S.dataVersion} · 24 × 1h</div></div>${btn("数据输入详情", "showEvidence('data')", "small")}</div>`;
+  return `<div class="settings"><div class="field"><label for="day">分析日期 / 场景标签</label><input id="day" type="date" value="${S.date}" onchange="change('date',this.value)"></div><div class="field"><label>数据版本</label><div style="padding:10px 0">DEMO-D${S.dataVersion} · 24 × 1h</div></div>${btn("数据输入详情", "showEvidence('data')", "small")}</div>`;
 }
 function forecast() {
   const a = Engine.error(data.load, data.actual),
@@ -251,6 +344,8 @@ function change(k, v) {
       return;
     }
   }
+  if (["date", "scenario"].includes(k)) invalidateOutputs();
+  if (["capacity", "power"].includes(k)) invalidateOutputs("parameters");
   S[k] = v;
   S.dataVersion++;
   data = Engine.dataset(S.scenario);
@@ -280,7 +375,7 @@ function dispatch() {
     )
     .join(
       "",
-    )}</select></div><div class="field"><label for="budget">允许费用增幅（%，0–30）</label><input id="budget" type="number" min="0" max="30" value="${S.budget}" onchange="change('budget',this.value)"></div><div class="field"><label>设备配置 / 当前输入</label><span class="sub">${S.capacity} kWh / ${S.power} kW<br>DEMO-D${S.dataVersion}</span></div>${btn("生成并检查方案", "runPlan()", "primary")}${btn(S.missing ? "恢复碳因子" : "模拟缺失碳因子", "S.missing=!S.missing;S.current=null;render()", "small")}</div>${S.missing ? '<div class="notice error">碳因子缺失：当前阻断方案生成，不能补零或使用旧方案冒充新结果。点击“恢复碳因子”后重新计算。</div>' : ""}<div class="notice">${S.current ? `当前计划 <b>${S.current.id}</b> · ${p.name} · ${S.current.stateLabel} · 引用 DEMO-D${config.version}` : "当前展示待计算预览，点击“生成并检查方案”创建正式演示记录。"}　算法为 81 组权重候选的启发式扫描，不保证全局最优；独立复算不等于电网校核。</div><div class="analysis-grid"><div><div class="kpis">${kpi("购电费用", fmt(p.cost), "元", `${p.name} · 同输入经济基准 ${fmt(base.cost)} 元`)}${kpi("购电碳排", fmt(p.carbon), "kgCO₂", `相对经济基准 ${fmt((p.carbon / base.carbon - 1) * 100)}%`)}${kpi("弃光电量", fmt(p.curtail), "kWh", "禁止反送电 · 剩余光伏计入弃光")}${kpi("独立复算", S.current ? (v.ok ? "通过" : "失败") : "待运行", "", S.current ? "功率平衡 / SOC / 成本 / 碳排" : "生成后保存检查结果")}</div>${panel(
+    )}</select></div><div class="field"><label for="budget">允许费用增幅（%，0–30）</label><input id="budget" type="number" min="0" max="30" value="${S.budget}" onchange="change('budget',this.value)"></div><div class="field"><label>设备配置 / 当前输入</label><span class="sub">${S.capacity} kWh / ${S.power} kW<br>DEMO-D${S.dataVersion}</span></div>${btn("生成并检查方案", "runPlan()", "primary")}${btn(S.missing ? "恢复碳因子" : "模拟缺失碳因子", "toggleMissingInput()", "small")}</div>${S.missing ? '<div class="notice error">碳因子缺失：当前阻断方案生成，不能补零或使用旧方案冒充新结果。点击“恢复碳因子”后重新计算。</div>' : ""}<div class="notice">${S.current ? `当前计划 <b>${S.current.id}</b> · ${p.name} · ${S.current.stateLabel} · 引用 DEMO-D${config.version}` : "当前展示待计算预览，点击“生成并检查方案”创建正式演示记录。"}　算法为 81 组权重候选的启发式扫描，不保证全局最优；独立复算不等于电网校核。</div><div class="analysis-grid"><div><div class="kpis">${kpi("购电费用", fmt(p.cost), "元", `${p.name} · 同输入经济基准 ${fmt(base.cost)} 元`)}${kpi("购电碳排", fmt(p.carbon), "kgCO₂", `相对经济基准 ${fmt((p.carbon / base.carbon - 1) * 100)}%`)}${kpi("弃光电量", fmt(p.curtail), "kWh", "禁止反送电 · 剩余光伏计入弃光")}${kpi("独立复算", S.current ? (v.ok ? "通过" : "失败") : "待运行", "", S.current ? "功率平衡 / SOC / 成本 / 碳排" : "生成后保存检查结果")}</div>${panel(
     "日内功率计划",
     chart([
       { name: "负荷", values: p.rows.map((r) => r.load), color: colors.load },
@@ -349,6 +444,7 @@ function nextId() {
   return "EO-" + String(S.records.length + 1).padStart(3, "0");
 }
 function runPlan(state = "normal", parent = null, prefix = null) {
+  if (!dispatchReady()) return false;
   if (S.missing) {
     toast("碳因子缺失，生成已阻断");
     return false;
@@ -366,6 +462,7 @@ function runPlan(state = "normal", parent = null, prefix = null) {
     id: nextId(),
     created: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
     config: cfg,
+    inputOutputs: { ...S.outputs },
     alternatives: ps,
     plan: ps.find((p) => p.key === S.objective),
     stateLabel: {
@@ -510,11 +607,13 @@ function fault() {
   }${replanned ? `<div style="height:20px"></div>${panel("故障前后方案关联", `<div class="tablewrap"><table><thead><tr><th>方案</th><th>设备状态</th><th>费用 / 元</th><th>碳排 / kgCO₂</th><th>终态 SOC</th><th>独立复算</th></tr></thead><tbody>${[f.original, replanned].map((r) => `<tr><td>${r.id} · ${r.plan.name}</td><td>${r.stateLabel}</td><td>${fmt(r.plan.cost)}</td><td>${fmt(r.plan.carbon)}</td><td>${fmt(r.plan.rows[23].soc)}%</td><td>${Engine.verify(r.plan).ok ? "通过" : "失败"}</td></tr>`).join("")}</tbody></table></div><div class="card-pad"><p class="sub">同一日期、目标和数据版本，设备状态改变。若设备受限导致终态能量不同，费用差异包含终态差异，不能全部归因为策略优劣。</p><div class="actions" style="margin-top:15px">${btn("查看新计划曲线 →", "go('dispatch')", "primary")}${btn("导出事件报告", "exportEvent()")}</div></div>`)}` : ""}<div style="height:20px"></div>${panel("电网分析模块 · 输入与检查范围", `<div class="card-pad"><div class="detailbox"><div><b>网络输入</b><p>示意母线与设备映射、假设变压器限额。尚无真实线路阻抗、电压与无功参数。</p></div><div><b>演示校核</b><p>对计划最大购电功率进行 250 kW 有功限额筛查。未接入 AC 潮流，不声称电网安全验收。</p></div><div><b>恢复交付</b><p>事件、诊断依据、恢复建议、反馈状态及版本。有效反馈传递给调度模块形成关联新计划。</p></div></div></div>`, badge("负责人 · 高翰林"))}`;
 }
 function injectFault() {
+  if (!dispatchReady()) return false;
   if (S.missing) {
     toast("请先恢复碳因子并生成原计划");
     return;
   }
-  if (!S.current || S.current.plan.state !== "normal") runPlan();
+  if ((!S.current || S.current.plan.state !== "normal") && !runPlan())
+    return false;
   S.fault = {
     original: S.current,
     diagnosed: false,
@@ -541,6 +640,7 @@ function feedback(value) {
   );
 }
 function replan() {
+  if (!dispatchReady()) return false;
   const f = S.fault;
   if (!f || !f.feedback || f.feedback === "none") return;
   const cfg = f.original.config;
@@ -600,7 +700,7 @@ function reports() {
 }
 function openRecord(id) {
   const r = S.records.find((r) => r.id === id);
-  if (!r) return;
+  if (!r || !recordInputsReady(r)) return false;
   S.current = r;
   Object.assign(S, {
     capacity: r.config.capacity,
@@ -703,7 +803,7 @@ function showTeam() {
 }
 function reportText(r) {
   const v = Engine.verify(r.plan);
-  return `# EnergyOps 演示方案报告\n\n计划：${r.id}\n场景日期：${r.config.date}\n时区：Asia/Shanghai；粒度：1h\n目标：${r.plan.name}\n数据版本：DEMO-D${r.config.version}\n合成天气场景：${r.config.scenario}\n储能：${r.config.capacity} kWh / ${r.config.power} kW\n设备状态：${r.stateLabel}\n父计划：${r.parent || "无"}\n费用：${fmt(r.plan.cost, 2)} 元\n购电碳排：${fmt(r.plan.carbon, 2)} kgCO2\n弃光：${fmt(r.plan.curtail, 2)} kWh\n允许费用增幅：${r.config.budget}%（相对同设备状态的经济启发式基准）\n终态SOC：${fmt(r.plan.rows[23].soc, 2)}%\n独立复算：${v.ok ? "通过" : "失败"}；功率平衡最大残差 ${v.balance}\n电网检查：250 kW有功限额筛查${Math.max(...r.plan.rows.map((x) => x.grid)) <= 250 ? "通过" : "越限"}，未执行AC潮流\n人工审阅：${r.reviewed ? "已标记" : "待审阅"}\n\n## 数据与算法边界\n全部数据为合成，预测与参考值非实测。规则启发式扫描81组权重，不保证全局最优；AI为规则解释，未接入在线模型。不下发设备控制，不证明真实节费、减排、故障检测效果或投资回报。\n\n## 分工\n韦佳伶：负荷与光伏预测；凌俊楷：碳因子与光储参数、调度参与；高翰林：电网与故障恢复；梁紫昱：调度、Agent、页面与集成。正式专业模型待接入。\n\n## 逐时计划\n\n时段,负荷kW,光伏kW,购电kW,充电kW,放电kW,SOC%,电价元/kWh,碳因子kgCO2/kWh\n${r.plan.rows.map((x) => [x.h, x.load, x.pv, x.grid.toFixed(3), x.charge.toFixed(3), x.discharge.toFixed(3), x.soc.toFixed(3), x.price, x.carbon].join(",")).join("\n")}\n`;
+  return `# EnergyOps 演示方案报告\n\n计划：${r.id}\n场景日期：${r.config.date}\n时区：Asia/Shanghai；粒度：1h\n目标：${r.plan.name}\n数据版本：DEMO-D${r.config.version}\n储能：${r.config.capacity} kWh / ${r.config.power} kW\n设备状态：${r.stateLabel}\n父计划：${r.parent || "无"}\n费用：${fmt(r.plan.cost, 2)} 元\n购电碳排：${fmt(r.plan.carbon, 2)} kgCO2\n弃光：${fmt(r.plan.curtail, 2)} kWh\n允许费用增幅：${r.config.budget}%（相对同设备状态的经济启发式基准）\n终态SOC：${fmt(r.plan.rows[23].soc, 2)}%\n独立复算：${v.ok ? "通过" : "失败"}；功率平衡最大残差 ${v.balance}\n电网检查：250 kW有功限额筛查${Math.max(...r.plan.rows.map((x) => x.grid)) <= 250 ? "通过" : "越限"}，未执行AC潮流\n人工审阅：${r.reviewed ? "已标记" : "待审阅"}\n\n## 数据与算法边界\n全部数据为合成，预测与参考值非实测。规则启发式扫描81组权重，不保证全局最优；AI为规则解释，未接入在线模型。不下发设备控制，不证明真实节费、减排、故障检测效果或投资回报。\n\n## 分工\n韦佳伶：负荷与光伏预测；凌俊楷：碳因子与光储参数、调度参与；高翰林：电网与故障恢复；梁紫昱：调度、Agent、页面与集成。正式专业模型待接入。\n\n## 逐时计划\n\n时段,负荷kW,光伏kW,购电kW,充电kW,放电kW,SOC%,电价元/kWh,碳因子kgCO2/kWh\n${r.plan.rows.map((x) => [x.h, x.load, x.pv, x.grid.toFixed(3), x.charge.toFixed(3), x.discharge.toFixed(3), x.soc.toFixed(3), x.price, x.carbon].join(",")).join("\n")}\n`;
 }
 function download(name, text, type = "text/markdown;charset=utf-8") {
   const a = document.createElement("a"),
@@ -767,6 +867,10 @@ const tours = {
   ],
 };
 function startTour(type) {
+  if (type === "fault" && !dispatchReady()) {
+    go("forecast");
+    return;
+  }
   S.tour = type;
   S.step = 0;
   go(tours[type][0][0]);
@@ -797,11 +901,14 @@ function tourMove(n) {
       }
     }
   }
-  S.step = Math.min(3, Math.max(0, S.step + n));
+  const nextStep = Math.min(3, Math.max(0, S.step + n));
+  if (tours[S.tour][nextStep][0] === "dispatch" && !dispatchReady()) return;
+  S.step = nextStep;
   go(tours[S.tour][S.step][0]);
 }
 function resetDemo() {
-  S.page = "overview";
+  S.page = "forecast";
+  S.outputs = { forecast: null, parameters: null };
   S.scenario = "sunny";
   S.capacity = 320;
   S.power = 60;

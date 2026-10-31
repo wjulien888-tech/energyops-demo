@@ -377,7 +377,7 @@ h3 {
 }
 .filter-fields {
   display: grid;
-  grid-template-columns: repeat(6, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 18px;
 }
 .query-card {
@@ -1496,4 +1496,14 @@ pre {
   .note-line {
     padding: 8px 10px;
   }
+}
+
+.rail-item:disabled,
+.menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+  background: transparent;
+}
+[hidden] {
+  display: none !important;
 }
