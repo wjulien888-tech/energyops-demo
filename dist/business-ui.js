@@ -41,7 +41,7 @@ function render() {
   if (S.page === "dispatch" && !dispatchReady()) S.page = "forecast";
   const title = businessNav.find((n) => n[0] === S.page)?.[1] || "日前调度方案";
   $("#app").innerHTML =
-    `<div class="business-shell"><header class="system-header"><div class="system-brand"><b>Energy<span>Ops</span></b><i></i><span>园区能源管理系统</span></div><div class="header-actions"><span class="env-tag">模拟环境</span><span class="header-region">科广校园　⌄</span><span class="usericon">${ico("user")}</span><span>演示用户</span></div></header><aside class="primary-rail">${[
+    `<div class="business-shell"><header class="system-header"><div class="system-brand"><b>Energy<span>Ops</span></b><i></i><span>园区能源管理系统</span></div><div class="header-actions"><button class="language-toggle" onclick="toggleLanguage()">${interfaceLanguage === "zh" ? "EN" : "中文"}</button><span class="env-tag">模拟环境</span><span class="header-region">科广校园　⌄</span><span class="usericon">${ico("user")}</span><span>演示用户</span></div></header><aside class="primary-rail">${[
       ["grid", "园区总览", "overview"],
       ["chart", "能源预测", "forecast"],
       ["bolt", "运行调度", "dispatch"],
@@ -55,9 +55,10 @@ function render() {
       .join(
         "",
       )}<button class="rail-item rail-bottom" title="模块说明" aria-label="模块说明" onclick="showTeam()">${ico("settings")}<span>模块说明</span></button></aside><aside class="side-menu"><h2>能源运行管理</h2><div class="menu-section">业务管理</div>${businessNav.map((a, i) => `<button class="menu-item ${S.page === a[0] ? "active" : ""}" ${a[0] === "dispatch" ? `data-dispatch-entry ${dispatchReady() ? "" : "disabled"}` : ""} onclick="go('${a[0]}')" aria-label="${a[1]}">${ico(i === 0 ? "grid" : i === 4 ? "alert" : "folder")}<span>${a[1]}</span></button>`).join("")}<div class="menu-section">演示工具</div><button class="menu-item secondary" onclick="startTour('normal')">${ico("chart")}<span>正常调度流程</span></button><button class="menu-item secondary" onclick="startTour('fault')">${ico("alert")}<span>故障恢复流程</span></button><button class="menu-item secondary" onclick="showTeam()">${ico("info")}<span>团队分工与接口</span></button><div class="side-bottom"><span class="statusdot"></span>浏览器本地计算<br><span>时区：Asia/Shanghai</span></div></aside><main class="main"><div class="page-tabs"><span class="tab-home" onclick="go('overview')">${ico("grid")}</span><button class="page-tab active">${title}</button><div class="tab-tools">${btn("重置演示", "resetDemo()", "text-btn")}${btn("模块说明", "showTeam()", "text-btn")}</div></div><div class="content">${S.tour ? tourBanner() : ""}${{ overview, forecast, parameters, dispatch, fault, reports }[S.page]()}<footer class="system-footer">数据类型：模拟　｜　时间粒度：1小时　｜　仅用于方案仿真与演示，不下发设备指令</footer></div></main></div>`;
+  translateInterface();
 }
 function queryBar(extra = "", run = false) {
-  return `<section class="card query-card"><div class="filter-fields"><div class="field"><label for="q-park">园区名称</label><select id="q-park"><option>科广校园（演示）</option></select></div><div class="field"><label for="day">运行日期</label><input id="day" type="date" value="${S.date}" oninput="invalidateOutputs()"></div><div class="field"><label>数据来源</label><div class="readonly">模拟数据</div></div><div class="field"><label>数据版本</label><div class="readonly">DEMO-D${S.dataVersion}</div></div>${extra}</div><div class="query-actions"><div class="actions">${btn(ico("search") + "查询", "applyFilters()", "primary")}${btn("重置条件", "resetFilters()")}</div><div class="actions">${run ? btn("输入检查", "showEvidence('data')") + btn(ico("bolt") + "生成调度方案", "generateFromForm()", "primary") : btn("数据详情", "showEvidence('data')", "", (S.page === "forecast" && !forecastReady()) || (S.page === "parameters" && !parametersReady()))}</div></div></section>`;
+  return `<section class="card query-card"><div class="filter-fields"><div class="field"><label for="q-park">园区名称</label><select id="q-park"><option>科广校园（演示）</option></select></div><div class="field"><label for="day">运行日期</label><input id="day" type="date" min="${MEETING.first}" max="${MEETING.last}" value="${S.date}" oninput="invalidateOutputs()"></div><div class="field"><label>数据来源</label><div class="readonly">模拟数据</div></div><div class="field"><label>数据版本</label><div class="readonly">DEMO-D${S.dataVersion}</div></div>${extra}</div><div class="query-actions"><div class="actions">${btn(ico("search") + "查询", "applyFilters()", "primary")}${btn("重置条件", "resetFilters()")}</div><div class="actions">${run ? btn("输入检查", "showEvidence('data')") + btn(ico("bolt") + "生成调度方案", "generateFromForm()", "primary") : btn("数据详情", "showEvidence('data')", "", (S.page === "forecast" && !forecastReady()) || (S.page === "parameters" && !parametersReady()))}</div></div></section>`;
 }
 function resetFilters() {
   const changed = S.date !== "2026-02-19";
@@ -91,17 +92,26 @@ function overview() {
     "kWh",
     "模拟发电数据",
   )}${kpi("储能容量", fmt(S.capacity, 0), "kWh", `额定功率 ${S.power} kW`)}${kpi("已生成方案", S.records.length, "份", S.current ? "当前方案 " + S.current.id : "暂无计算记录")}</div><div class="grid2 overview-grid">${panel(
-    "负荷与光伏曲线",
+    "能源供需曲线",
     chart(
       [
         { name: "负荷", values: data.load, color: colors.load },
         { name: "光伏", values: data.pv, color: colors.pv },
+        ...(S.current
+          ? [
+              {
+                name: "购电",
+                values: p.rows.map((r) => r.grid),
+                color: colors.grid,
+              },
+            ]
+          : []),
       ],
       "kW",
       230,
     ),
-    `<span class="sub">${S.date}　00:00—23:00</span>`,
-  )}${panel("设备运行信息", `<div class="tablewrap"><table><thead><tr><th>设备</th><th>参数</th><th>状态</th></tr></thead><tbody><tr><td>光伏系统</td><td>150 kWp</td><td>${badge("可用")}</td></tr><tr><td>储能系统</td><td>${S.capacity} kWh / ${S.power} kW</td><td>${badge(S.fault && S.fault.feedback !== "full" ? "事件处理中" : "可用", S.fault ? "warn" : "")}</td></tr><tr><td>园区变压器</td><td>250 kW 有功限额</td><td>${badge("参数已配置")}</td></tr></tbody></table></div><div class="note-line">模拟拓扑与参数，非现场设备监测。</div>`)}</div>${panel("业务处理", `<div class="tablewrap"><table><thead><tr><th>业务事项</th><th>处理内容</th><th>关联记录</th><th>状态</th><th>操作</th></tr></thead><tbody><tr><td>日前调度</td><td>基于负荷、光伏、电价与碳因子生成方案</td><td>${S.current?.id || "—"}</td><td>${badge(S.current ? "已计算" : "待计算", S.current ? "" : "warn")}</td><td>${btn("进入调度", "go('dispatch')", "link-btn")}</td></tr><tr><td>故障恢复</td><td>诊断、恢复反馈、状态更新与重规划</td><td>${S.fault ? "EVT-001" : "—"}</td><td>${badge(S.fault?.newId ? "已重规划" : S.fault ? "处理中" : "暂无事件", S.fault && !S.fault.newId ? "warn" : "")}</td><td>${btn("事件管理", "go('fault')", "link-btn")}</td></tr><tr><td>方案报告</td><td>查看历史记录、复算依据与导出报告</td><td>${S.records.length} 份方案</td><td>—</td><td>${btn("查看记录", "go('reports')", "link-btn")}</td></tr></tbody></table></div>`)}<div class="module-strip"><span>专业模块</span>${[
+    `<span class="sub">${S.date}　00:00—23:00 · 各曲线为功率幅值</span>`,
+  )}${panel("设备运行信息", `<div class="tablewrap"><table><thead><tr><th>设备</th><th>参数</th><th>状态</th></tr></thead><tbody><tr><td>光伏系统</td><td>150 kWp</td><td>${badge("可用")}</td></tr><tr><td>储能系统</td><td>${S.capacity} kWh / ${S.power} kW</td><td>${badge(S.fault && S.fault.feedback !== "full" ? "事件处理中" : "可用", S.fault ? "warn" : "")}</td></tr><tr><td>园区变压器</td><td>250 kW 有功限额</td><td>${badge("参数已配置")}</td></tr></tbody></table></div><div class="note-line">校园负荷案例、光伏150 kWp和储能均为合成演示假设，非现场设备监测；电表购电不直接等于含光伏系统的总负荷。</div>`)}</div>${S.current ? panel("储能SOC", chart([{ name: "SOC", values: p.rows.map((r) => r.soc), color: colors.soc }], "%", 150)) : ""}${panel("业务处理", `<div class="tablewrap"><table><thead><tr><th>业务事项</th><th>处理内容</th><th>关联记录</th><th>状态</th><th>操作</th></tr></thead><tbody><tr><td>日前调度</td><td>基于负荷、光伏、电价与碳因子生成方案</td><td>${S.current?.id || "—"}</td><td>${badge(S.current ? "已计算" : "待计算", S.current ? "" : "warn")}</td><td>${btn("进入调度", "go('dispatch')", "link-btn")}</td></tr><tr><td>故障恢复</td><td>诊断、恢复反馈、状态更新与重规划</td><td>${S.fault ? "EVT-001" : "—"}</td><td>${badge(S.fault?.newId ? "已重规划" : S.fault ? "处理中" : "暂无事件", S.fault && !S.fault.newId ? "warn" : "")}</td><td>${btn("事件管理", "go('fault')", "link-btn")}</td></tr><tr><td>方案报告</td><td>查看历史记录、复算依据与导出报告</td><td>${S.records.length} 份方案</td><td>—</td><td>${btn("查看记录", "go('reports')", "link-btn")}</td></tr></tbody></table></div>`)}<div class="module-strip"><span>专业模块</span>${[
     ["预测", "韦佳伶", "forecast"],
     ["碳因子与设备", "凌俊楷", "parameters"],
     ["调度与集成", "梁紫昱、凌俊楷", "dispatch"],
@@ -118,7 +128,84 @@ function dispatch() {
     ps = S.current?.alternatives || draft,
     base = ps[0],
     cfg = currentConfig(),
-    v = Engine.verify(p);
+    v = Engine.verify(p),
+    same =
+      Math.abs(ps[1].cost - ps[2].cost) < 1e-6 &&
+      Math.abs(ps[1].carbon - ps[2].carbon) < 1e-6;
+  const refs = S.current?.inputs || {
+    forecast: S.forecastId,
+    parameters: S.parameterId,
+  };
+  const chartBody =
+    UI.curve === "carbon"
+      ? chart(
+          [
+            {
+              name: "逐时购电碳排",
+              values: p.rows.map((r) => r.grid * r.carbon),
+              color: "#7d73c8",
+            },
+          ],
+          "kgCO₂",
+          245,
+        )
+      : UI.curve === "soc"
+        ? chart(
+            [
+              {
+                name: "SOC",
+                values: p.rows.map((r) => r.soc),
+                color: colors.soc,
+              },
+            ],
+            "%",
+            245,
+          )
+        : UI.curve === "battery"
+          ? chart(
+              [
+                {
+                  name: "充电功率",
+                  values: p.rows.map((r) => r.charge),
+                  color: colors.charge,
+                },
+                {
+                  name: "放电功率",
+                  values: p.rows.map((r) => r.discharge),
+                  color: colors.discharge,
+                },
+              ],
+              "kW",
+              245,
+              { step: true },
+            )
+          : chart(
+              [
+                {
+                  name: "购电功率",
+                  values: p.rows.map((r) => r.grid),
+                  color: colors.load,
+                },
+                {
+                  name: "光伏功率",
+                  values: p.rows.map((r) => r.pv),
+                  color: colors.pv,
+                },
+                {
+                  name: "负荷功率",
+                  values: p.rows.map((r) => r.load),
+                  color: "#a6afbd",
+                  dash: true,
+                },
+              ],
+              "kW",
+              245,
+            );
+  let accumulated = 0;
+  const table = p.rows.map((r) => {
+    accumulated += r.grid * r.carbon;
+    return { ...r, emission: r.grid * r.carbon, accumulated };
+  });
   return `${queryBar(
     `<div class="field"><label for="objective">优化目标</label><select id="objective">${[
       ["economic", "经济优先"],
@@ -131,10 +218,11 @@ function dispatch() {
       )
       .join("")}</select></div>`,
     true,
-  )}<section class="card scheme-card"><div class="cardhead"><h3>调度方案</h3><div class="actions"><span class="sub">${S.current ? "当前：" + S.current.id : "待计算预览"}</span>${btn("设备参数", "go('parameters')", "small")}${btn("计算依据", "showTeam()", "small")}</div></div><div class="scheme-list">${ps.map((r, i) => `<div class="scheme-row ${p.key === r.key ? "selected" : ""}"><div class="scheme-name"><span class="scheme-letter scheme-${i}">方案${String.fromCharCode(65 + i)}</span><strong>${r.name}</strong>${r.key === "balanced" ? '<span class="recommend">成本受限</span>' : ""}</div><div><label>购电费用</label><b>${fmt(r.cost, 2)} <small>元</small></b></div><div><label>购电碳排</label><b>${fmt(r.carbon, 2)} <small>kgCO₂</small></b></div><div><label>费用增幅</label><b>${fmt((r.cost / base.cost - 1) * 100, 2)}%</b></div><div><label>预算校核</label>${badge(r.cost <= base.cost * (1 + cfg.budget / 100) + 1e-6 ? "满足" : "超出预算", r.cost <= base.cost * (1 + cfg.budget / 100) + 1e-6 ? "" : "warn")}</div><div class="actions">${btn(p.key === r.key ? "当前方案" : "查看", `choose('${r.key}')`, "small outline-blue")}${btn("导出", `exportAlternative('${r.key}')`, "small", !S.current)}</div></div>`).join("")}</div><div class="scheme-foot"><span>比较口径：同一输入及设备状态；末端能量差单独列示。经济基准为候选集中最低费用。</span><label for="budget">费用增幅上限 <input id="budget" type="number" min="0" max="30" value="${S.budget}" onchange="change('budget',this.value)"> %</label></div></section>${S.missing ? '<div class="notice error">碳因子缺失，方案生成已阻断。请恢复输入后重新计算。</div>' : ""}<section class="card dispatch-curves"><div class="cardhead"><h3>调度曲线与时段数据</h3><div class="actions"><span class="sub">储能 ${cfg.capacity} kWh / ${cfg.power} kW</span>${btn("校核详情", "showEvidence('verification')", "small", !S.current)}${btn("导出当前方案", "exportReport()", "small", !S.current)}</div></div><div class="tabline"><div class="tabs">${[
+  )}<div class="source-chain"><span>预测 ${refs.forecast}</span><span>参数 ${refs.parameters}</span><span>${S.date} / 24 × 1h</span><span>${historicalDate() ? "历史方案回放" : "日前预测方案"} · 合成数据</span></div><section class="card scheme-card meeting-schemes"><div class="cardhead"><h3>调度方案</h3><div class="actions"><span class="sub">${S.current ? "当前：" + S.current.id : "待计算预览"}</span>${btn("设备参数", "go('parameters')", "small")}${btn("计算依据", "showTeam()", "small")}</div></div><div class="scheme-list">${ps.map((r, i) => `<div class="scheme-row ${p.key === r.key ? "selected" : ""}"><div class="scheme-name"><span class="scheme-letter scheme-${i}">方案${String.fromCharCode(65 + i)}</span><strong>${r.name}</strong></div><div><label>预计购电费用</label><b>${fmt(r.cost, 2)} <small>元</small></b></div><div><label>预计购电碳排</label><b>${fmt(r.carbon, 2)} <small>kgCO₂</small></b></div><div><label>预算校核</label>${badge(r.cost <= base.cost * (1 + cfg.budget / 100) + 1e-6 ? "满足" : "超出预算", r.cost <= base.cost * (1 + cfg.budget / 100) + 1e-6 ? "" : "warn")}</div><div class="actions">${btn(p.key === r.key ? "当前方案" : "查看", `choose('${r.key}')`, "small outline-blue")}${btn("导出", `exportAlternative('${r.key}')`, "small", !S.current)}</div></div>`).join("")}</div><div class="scheme-foot"><span>经济基准为同条件候选集中最低费用。C在费用上限内优先减碳。${same ? "当前约束下B、C结果一致，未人为制造差异。" : ""}</span><label for="budget">费用增幅上限 <input id="budget" type="number" min="0" max="30" value="${S.budget}" onchange="applyBudget(this.value)"> %</label>${btn("应用上限", "applyBudget(document.querySelector('#budget').value)", "small")}</div></section>${S.missing ? '<div class="notice error">碳因子缺失，方案生成已阻断。</div>' : ""}<section class="card dispatch-curves"><div class="cardhead"><h3>调度曲线与时段数据</h3><div class="actions"><span class="sub">储能 ${cfg.capacity} kWh / ${cfg.power} kW</span>${btn("校核详情", "showEvidence('verification')", "small", !S.current)}${btn("导出当前方案", "exportReport()", "small", !S.current)}</div></div><div class="tabline"><div class="tabs">${[
     ["power", "功率计划"],
     ["battery", "储能充放电"],
     ["soc", "SOC曲线"],
+    ["carbon", "逐时碳排"],
   ]
     .map(
       (a) =>
@@ -142,67 +230,15 @@ function dispatch() {
     )
     .join(
       "",
-    )}</div><span class="sub">${S.current ? S.current.id + " · " + S.current.stateLabel : "预览数据，尚未生成记录"}</span></div><div class="dispatch-body"><div class="table-chart"><div class="hour-table"><table><thead><tr><th>时段</th><th>${UI.curve === "soc" ? "SOC(%)" : UI.curve === "battery" ? "充电(kW)" : "购电(kW)"}</th><th>${UI.curve === "soc" ? "能量(kWh)" : UI.curve === "battery" ? "放电(kW)" : "负荷(kW)"}</th></tr></thead><tbody>${p.rows
+    )}</div><span class="sub">${S.current ? S.current.id + " · " + S.current.stateLabel : "预览数据，尚未生成记录"}</span></div><div class="dispatch-body"><div class="table-chart"><div class="hour-table"><table><thead><tr><th>时段</th><th>${UI.curve === "carbon" ? "排放(kgCO₂)" : UI.curve === "soc" ? "SOC(%)" : UI.curve === "battery" ? "充电(kW)" : "购电(kW)"}</th><th>${UI.curve === "carbon" ? "购电量(kWh)" : UI.curve === "soc" ? "能量(kWh)" : UI.curve === "battery" ? "放电(kW)" : "负荷(kW)"}</th></tr></thead><tbody>${table
     .slice(0, UI.allRows ? 24 : 8)
     .map(
       (r) =>
-        `<tr class="${S.hour === r.h ? "selected" : ""}" onclick="selectHour(${r.h})"><td>${String(r.h).padStart(2, "0")}:00</td><td>${fmt(UI.curve === "soc" ? r.soc : UI.curve === "battery" ? r.charge : r.grid, 2)}</td><td>${fmt(UI.curve === "soc" ? r.energy : UI.curve === "battery" ? r.discharge : r.load, 2)}</td></tr>`,
+        `<tr class="${S.hour === r.h ? "selected" : ""}" onclick="selectHour(${r.h})"><td>${String(r.h).padStart(2, "0")}:00</td><td>${fmt(UI.curve === "carbon" ? r.emission : UI.curve === "soc" ? r.soc : UI.curve === "battery" ? r.charge : r.grid, 2)}</td><td>${fmt(UI.curve === "carbon" ? r.grid : UI.curve === "soc" ? r.energy : UI.curve === "battery" ? r.discharge : r.load, 2)}</td></tr>`,
     )
     .join(
       "",
-    )}</tbody></table><button class="table-expand" onclick="UI.allRows=!UI.allRows;render()">${UI.allRows ? "收起" : "展开全部24个时段"}　⌄</button></div><div class="curve-main">${
-    UI.curve === "power"
-      ? chart(
-          [
-            {
-              name: "购电功率",
-              values: p.rows.map((r) => r.grid),
-              color: colors.load,
-            },
-            {
-              name: "光伏功率",
-              values: p.rows.map((r) => r.pv),
-              color: colors.pv,
-            },
-            {
-              name: "负荷功率",
-              values: p.rows.map((r) => r.load),
-              color: "#a6afbd",
-              dash: true,
-            },
-          ],
-          "kW",
-          245,
-        )
-      : UI.curve === "battery"
-        ? chart(
-            [
-              {
-                name: "充电功率",
-                values: p.rows.map((r) => r.charge),
-                color: colors.charge,
-              },
-              {
-                name: "放电功率",
-                values: p.rows.map((r) => r.discharge),
-                color: colors.discharge,
-              },
-            ],
-            "kW",
-            245,
-          )
-        : chart(
-            [
-              {
-                name: "SOC",
-                values: p.rows.map((r) => r.soc),
-                color: colors.soc,
-              },
-            ],
-            "%",
-            245,
-          )
-  }<div class="hour-detail"><b>${String(S.hour).padStart(2, "0")}:00</b><span>购电 ${fmt(p.rows[S.hour].grid, 2)} kW</span><span>SOC ${fmt(p.rows[S.hour].soc, 2)}%</span><span>电价 ${fmt(p.rows[S.hour].price, 2)} 元/kWh</span></div></div></div><aside class="strategy"><h4>策略说明 / 校核结果</h4>${strategyItem("blue", "费用与碳排", `费用 ${fmt((p.cost / base.cost - 1) * 100, 2)}%；碳排 ${fmt((p.carbon / base.carbon - 1) * 100, 2)}%。相对同状态经济基准。`)}${strategyItem("green", "设备约束", `初始SOC 50%；终态 ${fmt(p.rows[23].soc, 2)}%；功率上限 ${cfg.power} kW。`)}${strategyItem("blue", "独立复算", S.current ? `${v.ok ? "通过" : "失败"}：功率平衡、能量递推、SOC及指标复算。` : "待计算，生成方案后保存复算结果。")}${strategyItem("orange", "电网校核范围", "仅250 kW有功限额筛查，未执行AC潮流。")}<button class="strategy-link" onclick="openExplanation()">查看完整说明</button></aside></div></section><div class="grid3 bottom-metrics">${panel("费用约束", `<div class="metric"><strong>${fmt((p.cost / base.cost - 1) * 100, 2)}<small>%</small></strong>${badge("上限 " + cfg.budget + "%", p.cost > base.cost * (1 + cfg.budget / 100) + 1e-6 ? "warn" : "")}<span>基准费用 ${fmt(base.cost, 2)} 元</span></div>`)}${panel("运行指标", `<div class="metric"><strong>${fmt(p.curtail, 2)}<small>kWh</small></strong><span>弃光电量　｜　终态能量差 ${fmt(p.terminal - p.initial, 2)} kWh</span></div>`)}${panel("方案审阅", `<div class="metric"><span>${S.current?.reviewed ? badge("已审阅") : badge("待审阅", "warn")}</span>${btn("标记审阅", "reviewCurrent()", "small", !S.current)}${btn("故障恢复", "go('fault')", "small")}</div>`)}</div><div class="note-line">${btn(S.missing ? "恢复碳因子" : "缺失数据演示", "toggleMissingInput()", "text-btn")}<span>算法：规则启发式候选扫描；数据与结果均为模拟，不代表真实模型效果。</span></div>`;
+    )}</tbody></table><button class="table-expand" onclick="UI.allRows=!UI.allRows;render()">${UI.allRows ? "收起" : "展开全部24个时段"}　⌄</button></div><div class="curve-main">${chartBody}${balanceTable(p)}<div class="note-line">${UI.curve === "battery" ? "阶梯表示逐小时计划，同一时段充放电互斥；不表示连续采样。" : UI.curve === "carbon" ? "每小时购电量乘碳因子，24小时合计对应方案总排放。" : "功率均显示幅值，储能贡献可由供需核对及充放电/SOC页查看。"}</div></div></div><aside class="strategy"><h4>策略说明 / 校核结果</h4>${strategyItem("blue", "费用与碳排", `预计 ${fmt(p.cost, 2)} 元 / ${fmt(p.carbon, 2)} kgCO₂。不代表实际结算。`)}${strategyItem("green", "设备约束", `初始SOC 50%；终态 ${fmt(p.rows[23].soc, 2)}%。夜间可由初始储电供电，充电也可来自电网。`)}${strategyItem("blue", "独立复算", S.current ? `${v.ok ? "通过" : "失败"}：功率平衡、能量递推、SOC、充放电互斥与指标。` : "待生成方案。")}${strategyItem("orange", "电网校核范围", "仅250 kW有功限额筛查，不等于潮流或动态稳定性通过。")}<button class="strategy-link" onclick="openExplanation()">查看完整说明</button></aside></div></section><div class="grid3 bottom-metrics">${panel("费用约束", `<div class="metric"><strong>${fmt(base.cost * (1 + cfg.budget / 100), 2)}<small>元</small></strong><span>C方案费用上限；相对经济基准增加不超过 ${cfg.budget}%</span></div>`)}${panel("运行指标", `<div class="metric"><strong>${fmt(p.curtail, 2)}<small>kWh</small></strong><span>弃光电量　｜　终态能量差 ${fmt(p.terminal - p.initial, 2)} kWh</span></div>`)}${panel("方案审阅", `<div class="metric">${badge(S.current?.reviewed ? "已审阅" : "待审阅", S.current?.reviewed ? "" : "warn")}${btn("标记审阅", "reviewCurrent()", "small", !S.current)}${btn("故障恢复", "go('fault')", "small")}</div>`)}</div>${noStoragePanel(p)}${handoffPanel()}<div class="note-line">${btn(S.missing ? "恢复碳因子" : "缺失数据演示", "toggleMissingInput()", "text-btn")}<span>规则启发式扫描，不保证全局最优；预测、因子和设备为合成输入。</span></div>`;
 }
 function strategyItem(color, title, text) {
   return `<div class="strategy-item"><span class="strategy-dot ${color}"></span><div><b>${title}</b><p>${text}</p></div></div>`;
@@ -220,7 +256,7 @@ function openExplanation() {
     ps = S.current?.alternatives || draft;
   modal(
     "方案说明",
-    `<table><tbody><tr><td>当前方案</td><td>${S.current?.id || "预览"} / ${p.name}</td></tr><tr><td>计算方式</td><td>81组电价与碳因子权重候选扫描，不保证全局最优。</td></tr><tr><td>充放电依据</td><td>加权分数、SOC范围、充放电功率及末端能量恢复约束。</td></tr><tr><td>经济基准</td><td>同一输入及设备状态下，候选集中最低费用 ${fmt(ps[0].cost, 2)} 元。</td></tr><tr><td>碳排边界</td><td>购电量乘以分时碳因子，不含设备全生命周期。</td></tr><tr><td>检查范围</td><td>独立数值复算与250kW有功限额筛查，不含真实潮流。</td></tr></tbody></table><p>本说明采用固定规则读取当前方案，无在线大模型调用。</p>`,
+    `<table><tbody><tr><td>当前方案</td><td>${S.current?.id || "预览"} / ${p.name}</td></tr><tr><td>计算方式</td><td>81组电价与碳因子权重候选扫描，不保证全局最优。</td></tr><tr><td>充放电依据</td><td>加权分数、SOC范围、充放电功率及末端能量恢复约束。</td></tr><tr><td>经济基准</td><td>同一输入及设备状态下，候选集中最低费用 ${fmt(ps[0].cost, 2)} 元。</td></tr><tr><td>费用周期</td><td>仅计本日购电支出，放电不再次计费。正常计划初末SOC一致，不以消耗初始储电冒充节省；未计设备投资和折旧。</td></tr><tr><td>碳排边界</td><td>购电量乘以分时碳因子，不含设备全生命周期。</td></tr><tr><td>检查范围</td><td>独立数值复算与250kW有功限额筛查，不含真实潮流。</td></tr></tbody></table><p>本说明采用固定规则读取当前方案，无在线大模型调用。</p>`,
   );
 }
 function outputEmpty(name, visible = true) {
@@ -230,10 +266,11 @@ function forecast() {
   const ready = forecastReady();
   const header = `${queryBar()}<section class="card"><div class="cardhead"><h3>负荷与光伏预测</h3><div class="actions"><span class="sub">负责人：韦佳伶</span>${btn("模块接口", "showEvidence('forecast')", "small", !ready)}${btn("输出预测数据", "outputForecast()", "primary small")}${btn("参数配置", "go('parameters')", "small")}${btn("进入调度", "go('dispatch')", "small primary")}</div></div>`;
   if (!ready) return header + outputEmpty("forecast") + "</section>";
+  const historical = historicalDate();
   const isLoad = UI.forecast === "load",
     pred = isLoad ? data.load : data.pv,
-    actual = isLoad ? data.actual : data.actualPV,
-    err = Engine.error(pred, actual);
+    actual = historical ? (isLoad ? data.actual : data.actualPV) : null,
+    err = historical ? Engine.error(pred, actual) : null;
   return (
     header +
     `<div data-output-results="forecast"><div class="tabline"><div class="tabs">${[
@@ -246,18 +283,20 @@ function forecast() {
       )
       .join(
         "",
-      )}</div><span class="sub">发布时间：前一日18:00（模拟）　版本：DEMO-F1</span></div><div class="prediction-layout"><div class="hour-table"><table><thead><tr><th>时段</th><th>预测(kW)</th><th>参考(kW)</th><th>偏差(kW)</th></tr></thead><tbody>${pred.map((v, h) => `<tr><td>${String(h).padStart(2, "0")}:00</td><td>${fmt(v, 2)}</td><td>${fmt(actual[h], 2)}</td><td>${fmt(v - actual[h], 2)}</td></tr>`).join("")}</tbody></table></div><div class="prediction-chart">${chart(
+      )}</div><span class="sub">发布时间：前一日18:00（模拟）　版本：DEMO-F1</span></div><div class="prediction-layout"><div class="hour-table"><table><thead><tr><th>时段</th><th>预测(kW)</th>${historical ? "<th>实际值(kW)</th><th>偏差(kW)</th>" : ""}</tr></thead><tbody>${pred.map((v, h) => `<tr><td>${String(h).padStart(2, "0")}:00</td><td>${fmt(v, 2)}</td>${historical ? `<td>${fmt(actual[h], 2)}</td><td>${fmt(v - actual[h], 2)}</td>` : ""}</tr>`).join("")}</tbody></table></div><div class="prediction-chart">${chart(
       [
         {
-          name: isLoad ? "负荷预测" : "光伏预测",
+          name: historical ? "历史预测" : isLoad ? "负荷预测" : "光伏预测",
           values: pred,
           color: colors.load,
         },
-        { name: "参考值（合成）", values: actual, color: colors.pv },
+        ...(historical
+          ? [{ name: "实际值（模拟）", values: actual, color: colors.pv }]
+          : []),
       ],
       "kW",
       265,
-    )}<div class="kpis prediction-stats">${kpi("MAE", fmt(err.mae, 2), "kW", "平均绝对误差")}${kpi("RMSE", fmt(err.rmse, 2), "kW", "均方根误差")}${kpi("数据完整率", "100", "%", "24/24个时段")}</div><div class="note-line">预测值与参考值均为合成序列，误差不代表真实预测模型的测试效果。</div></div></div><div class="forecast-checks"><h4>数据检查</h4><div class="tablewrap"><table><thead><tr><th>检查项</th><th>要求</th><th>结果</th><th>说明</th></tr></thead><tbody><tr><td>时间窗口</td><td>分析日00:00—23:00</td><td>${badge("通过")}</td><td>Asia/Shanghai，1小时粒度</td></tr><tr><td>完整性与单位</td><td>24条记录，功率单位kW</td><td>${badge("通过")}</td><td>模拟输入无缺失值</td></tr><tr><td>模型接入</td><td>预测接口及版本</td><td>${badge("演示接口", "warn")}</td><td>当前为规则合成器，正式模型待接入</td></tr></tbody></table></div></div></div>${outputEmpty("forecast", false)}</section>`
+    )}${historical ? `<div class="kpis prediction-stats">${kpi("MAE", fmt(err.mae, 2), "kW", "平均绝对误差")}${kpi("RMSE", fmt(err.rmse, 2), "kW", "均方根误差")}${kpi("数据完整率", "100", "%", "24/24个时段")}</div>` : ""}<div class="note-line">${historical ? "历史预测与实际值均为模拟序列，误差不代表真实模型效果。MAE/RMSE越小越好，尚无独立测试集与达标阈值。" : "未来预测没有实际值，不计算MAE/RMSE。"} 输出 ${S.forecastId}，有效窗口 ${S.date} 00:00—23:00；演示基准日 ${MEETING.asOf}。正式研究模型待接入。</div></div></div><div class="forecast-checks"><h4>数据检查</h4><div class="tablewrap"><table><thead><tr><th>检查项</th><th>要求</th><th>结果</th><th>说明</th></tr></thead><tbody><tr><td>时间窗口</td><td>分析日00:00—23:00</td><td>${badge("通过")}</td><td>Asia/Shanghai，1小时粒度</td></tr><tr><td>完整性与单位</td><td>24条记录，功率单位kW</td><td>${badge("通过")}</td><td>模拟输入无缺失值</td></tr><tr><td>模型接入</td><td>预测接口及版本</td><td>${badge("演示接口", "warn")}</td><td>当前为规则合成器，正式模型待接入</td></tr></tbody></table></div></div></div>${outputEmpty("forecast", false)}</section>`
   );
 }
 function parameters() {
@@ -265,18 +304,21 @@ function parameters() {
   return `${queryBar()}<section class="card"><div class="cardhead"><h3>碳因子与设备参数</h3><div class="actions"><span class="sub">负责人：凌俊楷</span>${btn("输出参数", "saveAssets()", "primary small")}${btn("参数依据", "showEvidence('parameters')", "small", !ready)}${btn("进入调度", "go('dispatch')", "primary small")}</div></div><div class="asset-inputs"><div class="field"><label for="cap">储能容量（kWh）</label><input id="cap" oninput="invalidateOutputs('parameters')" aria-label="储能容量" type="number" min="100" max="1000" value="${S.capacity}"></div><div class="field"><label for="power">额定充放电功率（kW）</label><input id="power" oninput="invalidateOutputs('parameters')" type="number" min="20" max="100" value="${S.power}"></div></div>${ready ? parameterResults() : ""}${outputEmpty("parameters", !ready)}</section>`;
 }
 function parameterResults() {
-  return `<div data-output-results="parameters"><div class="result-heading">设备参数结果</div><div class="tablewrap"><table class="asset-table"><thead><tr><th>设备名称</th><th>参数项</th><th>参数值</th><th>单位</th><th>设置依据</th></tr></thead><tbody><tr><td>光伏系统</td><td>装机容量</td><td>150</td><td>kWp</td><td>演示假设</td></tr><tr><td rowspan="5">储能系统</td><td>额定容量</td><td>${S.capacity}</td><td>kWh</td><td>设备配置</td></tr><tr><td>额定充放电功率</td><td>${S.power}</td><td>kW</td><td>设备配置</td></tr><tr><td>充电 / 放电效率</td><td>95 / 95</td><td>%</td><td>固定假设参数</td></tr><tr><td>SOC下限 / 上限</td><td>15 / 90</td><td>%</td><td>调度边界约束</td></tr><tr><td>初始SOC</td><td>50</td><td>%</td><td>正常状态末端恢复初始能量</td></tr></tbody></table></div><div class="grid2 equal parameter-curves">${panel("分时碳因子", chart([{ name: "碳因子（合成）", values: data.carbon, color: colors.load }], "kgCO₂/kWh", 210) + `<div class="note-line">版本DEMO-C1；仅核算购电碳排，不含全生命周期。</div>`)}${panel("分时电价", chart([{ name: "电价（假设）", values: data.price, color: colors.pv }], "元/kWh", 210) + `<div class="note-line">假设分时电价，不作为实际结算依据。</div>`)}</div></div>`;
+  return `<div data-output-results="parameters"><div class="result-heading">设备参数结果</div><div class="tablewrap"><table class="asset-table"><thead><tr><th>设备名称</th><th>参数项</th><th>参数值</th><th>单位</th><th>设置依据</th></tr></thead><tbody><tr><td>光伏系统</td><td>装机容量</td><td>150</td><td>kWp</td><td>额定峰值功率，非全天输出；现场光伏尚未接入</td></tr><tr><td rowspan="5">储能系统</td><td>额定容量</td><td>${S.capacity}</td><td>kWh</td><td>设备配置</td></tr><tr><td>额定充放电功率</td><td>${S.power}</td><td>kW</td><td>设备配置</td></tr><tr><td>充电 / 放电效率</td><td>95 / 95</td><td>%</td><td>固定假设参数</td></tr><tr><td>SOC下限 / 上限</td><td>15 / 90</td><td>%</td><td>调度边界约束</td></tr><tr><td>初始SOC</td><td>50</td><td>%</td><td>正常状态末端恢复初始能量</td></tr></tbody></table></div><div class="grid2 equal parameter-curves">${panel("分时碳因子", chart([{ name: "碳因子（合成）", values: data.carbon, color: colors.load }], "kgCO₂/kWh", 210) + `<div class="note-line">DEMO-C1合成因子；仅核算购电碳排，不含全生命周期。正式分时碳因子待接入。</div>`)}${panel("分时电价", chart([{ name: "电价（假设）", values: data.price, color: colors.pv }], "元/kWh", 210) + `<div class="note-line">分时电价为演示假设，未冒用广州工业或校园实际结算价。</div>`)}</div></div>`;
 }
 const originalFault = fault;
 fault = function () {
-  return originalFault().replace(
-    /<div class="notice">[\s\S]*?<\/div>/,
-    '<div class="event-caption"><span>事件类型：储能支路断开</span><span>来源：预设仿真</span><span>发生时间：14:00</span><span>设备：BESS-01</span></div>',
+  return (
+    safetyPanel() +
+    originalFault().replace(
+      /<div class="notice">[\s\S]*?<\/div>/,
+      '<div class="event-caption"><span>事件类型：储能支路断开</span><span>来源：预设仿真</span><span>发生时间：14:00</span><span>设备：BESS-01</span></div>',
+    )
   );
 };
 const originalReports = reports;
 reports = function () {
-  return originalReports().replace(teamCards(), "");
+  return originalReports().replace(teamCards(), "") + outputHistory();
 };
 function teamCards() {
   return "";
@@ -284,6 +326,10 @@ function teamCards() {
 function applyFilters(silent = false) {
   const day = $("#day")?.value || S.date,
     objective = $("#objective")?.value || S.objective;
+  if (!validDate(day)) {
+    toast("该日期没有有效预测窗口");
+    return false;
+  }
   const budget = $("#budget") ? Number($("#budget").value) : S.budget;
   if (!Number.isFinite(budget) || budget < 0 || budget > 30) {
     toast("费用增幅上限应为0—30%");
@@ -344,6 +390,7 @@ function saveAssets() {
   S.current = null;
   S.fault = null;
   draft = Engine.plans(data, S);
+  rememberOutput("parameters");
   S.outputs.parameters = parameterInputKey();
   render();
   toast("碳因子与设备参数已输出");

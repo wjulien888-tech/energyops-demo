@@ -205,6 +205,20 @@
       terminal: plan.terminal - plan.initial,
     };
   }
+  function noStorage(data) {
+    const rows = data.hours.map((h) => ({
+      h,
+      load: data.load[h],
+      pv: data.pv[h],
+      grid: Math.max(0, data.load[h] - data.pv[h]),
+      curtail: Math.max(0, data.pv[h] - data.load[h]),
+    }));
+    return {
+      rows,
+      cost: rows.reduce((s, r) => s + r.grid * data.price[r.h], 0),
+      carbon: rows.reduce((s, r) => s + r.grid * data.carbon[r.h], 0),
+    };
+  }
   function error(pred, actual) {
     return {
       mae:
@@ -214,7 +228,7 @@
       ),
     };
   }
-  const api = { dataset, calculate, plans, verify, error };
+  const api = { dataset, calculate, plans, verify, error, noStorage };
   root.Engine = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

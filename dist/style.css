@@ -1557,3 +1557,77 @@ pre {
     min-height: 220px;
   }
 }
+
+.source-chain,
+.scope-strip {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  line-height: 1.8;
+  color: #7a8798;
+  background: #edf3fc;
+  border: 1px solid #deebfc;
+  border-radius: 4px;
+  padding: 9px 14px;
+  margin-bottom: 12px;
+}
+.balance-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.8;
+  padding: 10px 14px;
+  background: #f6f8fc;
+  margin: 8px 10px;
+  border-radius: 4px;
+  color: #77879b;
+}
+.balance-table strong {
+  font-weight: 500;
+  color: #435e80;
+}
+.handoff {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.handoff b {
+  font-size: 12px;
+  font-weight: 500;
+}
+.handoff p {
+  font-size: 11px;
+  color: #8591a1;
+  line-height: 1.8;
+  margin: 8px 0;
+}
+.language-toggle {
+  background: transparent;
+  color: #dce8fc;
+  border: 1px solid #66758b;
+  border-radius: 3px;
+  font-size: 11px;
+  padding: 3px 8px;
+}
+.meeting-schemes .scheme-row {
+  grid-template-columns: 1.4fr 1.1fr 1.1fr 0.8fr 150px;
+}
+@media (max-width: 1100px) {
+  .meeting-schemes .scheme-row {
+    grid-template-columns: 1.3fr 1fr 1fr 0.7fr;
+  }
+  .meeting-schemes .scheme-row > .actions {
+    grid-column: 1/-1;
+  }
+  .handoff {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+@media (max-width: 850px) {
+  .meeting-schemes .scheme-row > div:nth-child(5) {
+    display: flex;
+  }
+}

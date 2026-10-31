@@ -37,6 +37,10 @@ const S = {
   tour: null,
   step: 0,
   outputs: { forecast: null, parameters: null },
+  archive: [],
+  forecastId: null,
+  parameterId: null,
+  safety: null,
 };
 let data = Engine.dataset(),
   draft = Engine.plans(data, S);
@@ -139,6 +143,7 @@ function outputForecast() {
     toast("预测数据不完整，未输出");
     return false;
   }
+  rememberOutput("forecast");
   S.outputs.forecast = forecastInputKey();
   render();
   toast("预测数据已输出");
@@ -177,7 +182,8 @@ function btn(t, action, cl = "", disabled = false) {
   return `<button class="btn ${cl}" ${guarded ? "data-dispatch-entry" : ""} ${outputKind ? `data-output-action="${outputKind}"` : ""} onclick="${action}" ${disabled ? "disabled" : ""}>${t}</button>`;
 }
 function toast(t) {
-  $("#toast").textContent = t;
+  $("#toast").textContent =
+    typeof translateText === "function" ? translateText(t) : t;
   $("#toast").classList.add("show");
   clearTimeout(window.tt);
   window.tt = setTimeout(() => $("#toast").classList.remove("show"), 3000);
@@ -210,34 +216,62 @@ function kpi(label, value, unit, note) {
 function panel(title, body, right = "") {
   return `<section class="card"><div class="cardhead"><h3>${title}</h3>${right}</div>${body}</section>`;
 }
-function chart(series, unit = "kW", height = 210) {
+function chart(series, unit = "kW", height = 210, options = {}) {
   const W = 720,
-    H = height + 42,
+    H = height + (options.times ? 58 : 42),
     L = 66,
     R = 15,
     T = 15,
-    B = 32,
-    max = Math.max(1, ...series.flatMap((s) => s.values)) * 1.15,
+    B = options.times ? 48 : 32,
+    count = Math.max(...series.map((s) => s.values.length)),
+    minimum = options.times
+      ? Math.min(...series.flatMap((s) => s.values)) - 0.1
+      : 0,
+    max =
+      Math.max(minimum + 1, ...series.flatMap((s) => s.values)) *
+      (options.times ? 1 : 1.15),
     plotH = H - T - B;
-  const x = (i) => L + (i * (W - L - R)) / 23,
-    y = (v) => T + plotH - (v / max) * plotH;
+  const x = (i) =>
+      L +
+      ((options.bars ? i + 0.5 : i) * (W - L - R)) /
+        (options.bars || options.step ? count : Math.max(1, count - 1)),
+    y = (v) => T + plotH - ((v - minimum) / (max - minimum)) * plotH;
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${series.map((s) => s.name).join("、")}曲线，单位${unit}">`;
   const unitY = T + plotH / 2;
   svg += `<line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="#c8cfd9"/><text class="axis-unit" x="16" y="${unitY}" transform="rotate(-90 16 ${unitY})" text-anchor="middle" fill="#737d8c" font-size="11">${unit}</text>`;
   for (let j = 0; j < 5; j++) {
-    let val = (max * j) / 4;
+    let val = minimum + ((max - minimum) * j) / 4;
     svg += `<line x1="${L}" y1="${y(val)}" x2="${W - R}" y2="${y(val)}" stroke="#edf0e9"/><text x="${L - 9}" y="${y(val) + 3}" text-anchor="end" fill="#92a08e" font-size="9">${fmt(val, val < 2 ? 2 : 0)}</text>`;
   }
-  for (let h = 0; h < 24; h += 3)
-    svg += `<text x="${x(h)}" y="${H - 10}" text-anchor="middle" fill="#8d9c89" font-size="9">${String(h).padStart(2, "0")}:00</text>`;
+  for (let h = 0; h < count; h += Math.max(1, Math.ceil(count / 8)))
+    svg += `<text x="${x(h)}" y="${H - (options.times ? 20 : 10)}" text-anchor="middle" fill="#8d9c89" font-size="9">${options.times ? fmt(options.times[h], 2) : String(h).padStart(2, "0") + ":00"}</text>`;
   series.forEach((s) => {
-    const pts = s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+    let pts = s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+    if (options.step)
+      pts = s.values
+        .flatMap((v, i) =>
+          i
+            ? [`${x(i)},${y(s.values[i - 1])}`, `${x(i)},${y(v)}`]
+            : [`${x(i)},${y(v)}`],
+        )
+        .concat([`${W - R},${y(s.values[count - 1])}`])
+        .join(" ");
+    if (options.bars) {
+      const width = ((W - L - R) / count) * 0.7;
+      s.values.forEach((v, i) => {
+        svg += `<rect x="${x(i) - width / 2}" y="${y(v)}" width="${width}" height="${Math.max(0, y(0) - y(v))}" fill="${s.color}" opacity=".75"/>`;
+      });
+      return;
+    }
+
     if (s.fill)
       svg += `<polygon points="${x(0)},${y(0)} ${pts} ${x(23)},${y(0)}" fill="${s.color}" opacity=".08"/>`;
     svg += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.4" ${s.dash ? 'stroke-dasharray="5 5"' : ""} stroke-linejoin="round"/>`;
   });
-  for (let h = 0; h < 24; h++)
-    svg += `<rect class="hoverline" x="${x(h) - 10}" y="${T}" width="${(W - L - R) / 23}" height="${plotH}" fill="transparent" onclick="selectHour(${h})"><title>${String(h).padStart(2, "0")}:00 · ${series.map((s) => s.name + " " + fmt(s.values[h]) + " " + unit).join(" / ")}</title></rect>`;
+  for (let h = 0; h < count; h++)
+    svg += `<rect class="hoverline" x="${x(h) - 10}" y="${T}" width="${(W - L - R) / Math.max(1, count - 1)}" height="${plotH}" fill="transparent" ${options.times ? "" : `onclick="selectHour(${h})"`}><title>${options.times ? fmt(options.times[h], 2) + "s" : String(h).padStart(2, "0") + ":00"} · ${series.map((s) => s.name + " " + fmt(s.values[h]) + " " + unit).join(" / ")}</title></rect>`;
+  if (options.times)
+    svg += `<text x="${(L + W - R) / 2}" y="${H - 2}" text-anchor="middle" fill="#7d8796" font-size="10">时间 (s)</text>`;
   svg += "</svg>";
   return `<div class="legend">${series.map((s) => `<span><i style="background:${s.color}"></i>${s.name}</span>`).join("")}</div><div class="chart">${svg}</div>`;
 }
@@ -460,6 +494,8 @@ function choose(key) {
     const old = S.current;
     const record = {
       ...old,
+      feedback: undefined,
+      createdAt: new Date().toISOString(),
       id: nextId(),
       plan: old.alternatives.find((p) => p.key === key),
       reviewed: false,
@@ -495,6 +531,8 @@ function runPlan(state = "normal", parent = null, prefix = null) {
     created: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
     config: cfg,
     inputOutputs: { ...S.outputs },
+    inputs: activeInputs(),
+    createdAt: new Date().toISOString(),
     alternatives: ps,
     plan: ps.find((p) => p.key === S.objective),
     stateLabel: {
@@ -716,7 +754,11 @@ function reports() {
         "合成负荷 / 光伏 / 电价 / 碳因子，24h，Asia/Shanghai",
         "data",
       ],
-      ["预测接口与误差", "合成预测和参考值，MAE / RMSE 实时复算", "forecast"],
+      [
+        "预测接口与误差",
+        "历史预测和实际值（模拟）；未来日期无实际误差",
+        "forecast",
+      ],
       [
         "独立复算依据",
         "功率平衡、能量递推、SOC边界、费用与碳排",
@@ -752,6 +794,8 @@ function openRecord(id) {
 function modal(title, content) {
   $("#detail-body").innerHTML = `<h2>${title}</h2>${content}`;
   $("#detail").showModal();
+  if (typeof translateContainer === "function")
+    translateContainer($("#detail-body"));
 }
 function showEvidence(type) {
   let content, title;
@@ -795,8 +839,12 @@ function showEvidence(type) {
                 "valid_window",
                 "version",
               ],
-              load_error: Engine.error(data.load, data.actual),
-              pv_error: Engine.error(data.pv, data.actualPV),
+              load_error: historicalDate()
+                ? Engine.error(data.load, data.actual)
+                : null,
+              pv_error: historicalDate()
+                ? Engine.error(data.pv, data.actualPV)
+                : null,
               evaluation: "合成参考序列，不代表独立实测测试集",
             }
           : {
@@ -835,7 +883,7 @@ function showTeam() {
 }
 function reportText(r) {
   const v = Engine.verify(r.plan);
-  return `# EnergyOps 演示方案报告\n\n计划：${r.id}\n场景日期：${r.config.date}\n时区：Asia/Shanghai；粒度：1h\n目标：${r.plan.name}\n数据版本：DEMO-D${r.config.version}\n储能：${r.config.capacity} kWh / ${r.config.power} kW\n设备状态：${r.stateLabel}\n父计划：${r.parent || "无"}\n费用：${fmt(r.plan.cost, 2)} 元\n购电碳排：${fmt(r.plan.carbon, 2)} kgCO2\n弃光：${fmt(r.plan.curtail, 2)} kWh\n允许费用增幅：${r.config.budget}%（相对同设备状态的经济启发式基准）\n终态SOC：${fmt(r.plan.rows[23].soc, 2)}%\n独立复算：${v.ok ? "通过" : "失败"}；功率平衡最大残差 ${v.balance}\n电网检查：250 kW有功限额筛查${Math.max(...r.plan.rows.map((x) => x.grid)) <= 250 ? "通过" : "越限"}，未执行AC潮流\n人工审阅：${r.reviewed ? "已标记" : "待审阅"}\n\n## 数据与算法边界\n全部数据为合成，预测与参考值非实测。规则启发式扫描81组权重，不保证全局最优；AI为规则解释，未接入在线模型。不下发设备控制，不证明真实节费、减排、故障检测效果或投资回报。\n\n## 分工\n韦佳伶：负荷与光伏预测；凌俊楷：碳因子与光储参数、调度参与；高翰林：电网与故障恢复；梁紫昱：调度、Agent、页面与集成。正式专业模型待接入。\n\n## 逐时计划\n\n时段,负荷kW,光伏kW,购电kW,充电kW,放电kW,SOC%,电价元/kWh,碳因子kgCO2/kWh\n${r.plan.rows.map((x) => [x.h, x.load, x.pv, x.grid.toFixed(3), x.charge.toFixed(3), x.discharge.toFixed(3), x.soc.toFixed(3), x.price, x.carbon].join(",")).join("\n")}\n`;
+  return `# EnergyOps 演示方案报告\n\n计划：${r.id}\n场景日期：${r.config.date}\n时区：Asia/Shanghai；粒度：1h\n目标：${r.plan.name}\n预测输出：${r.inputs?.forecast || "—"}\n参数输出：${r.inputs?.parameters || "—"}\n交接状态：导出不等于执行，本页面不发送控制指令。\n数据版本：DEMO-D${r.config.version}\n储能：${r.config.capacity} kWh / ${r.config.power} kW\n设备状态：${r.stateLabel}\n父计划：${r.parent || "无"}\n预计购电费用：${fmt(r.plan.cost, 2)} 元\n购电碳排：${fmt(r.plan.carbon, 2)} kgCO2\n弃光：${fmt(r.plan.curtail, 2)} kWh\n允许费用增幅：${r.config.budget}%（相对同设备状态的经济启发式基准）\n终态SOC：${fmt(r.plan.rows[23].soc, 2)}%\n独立复算：${v.ok ? "通过" : "失败"}；功率平衡最大残差 ${v.balance}\n电网检查：250 kW有功限额筛查${Math.max(...r.plan.rows.map((x) => x.grid)) <= 250 ? "通过" : "越限"}，未执行AC潮流\n人工审阅：${r.reviewed ? "已标记" : "待审阅"}\n\n## 数据与算法边界\n全部数据为合成，预测与参考值非实测。规则启发式扫描81组权重，不保证全局最优；AI为规则解释，未接入在线模型。不下发设备控制，不证明真实节费、减排、故障检测效果或投资回报。\n\n## 分工\n韦佳伶：负荷与光伏预测；凌俊楷：碳因子与光储参数、调度参与；高翰林：电网与故障恢复；梁紫昱：调度、Agent、页面与集成。正式专业模型待接入。\n\n## 逐时计划\n\n时段,负荷kW,光伏kW,购电kW,充电kW,放电kW,SOC%,电价元/kWh,碳因子kgCO2/kWh\n${r.plan.rows.map((x) => [x.h, x.load, x.pv, x.grid.toFixed(3), x.charge.toFixed(3), x.discharge.toFixed(3), x.soc.toFixed(3), x.price, x.carbon].join(",")).join("\n")}\n`;
 }
 function download(name, text, type = "text/markdown;charset=utf-8") {
   const a = document.createElement("a"),
@@ -939,6 +987,10 @@ function tourMove(n) {
   go(tours[S.tour][S.step][0]);
 }
 function resetDemo() {
+  S.archive = [];
+  S.forecastId = null;
+  S.parameterId = null;
+  S.safety = null;
   S.page = "forecast";
   S.outputs = { forecast: null, parameters: null };
   S.scenario = "sunny";
@@ -959,4 +1011,4 @@ function resetDemo() {
   render();
   toast("已恢复初始演示状态");
 }
-render();
+// The business UI performs the only initial render.
