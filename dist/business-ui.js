@@ -41,7 +41,7 @@ function render() {
   if (S.page === "dispatch" && !dispatchReady()) S.page = "forecast";
   const title = businessNav.find((n) => n[0] === S.page)?.[1] || "日前调度方案";
   $("#app").innerHTML =
-    `<div class="business-shell"><header class="system-header"><div class="system-brand"><b>Energy<span>Ops</span></b><i></i><span>园区能源管理系统</span></div><div class="header-actions"><button class="language-toggle" onclick="toggleLanguage()">${interfaceLanguage === "zh" ? "EN" : "中文"}</button><span class="env-tag">模拟环境</span><span class="header-region">科广校园　⌄</span><span class="usericon">${ico("user")}</span><span>演示用户</span></div></header><aside class="primary-rail">${[
+    `<div class="business-shell"><header class="system-header"><div class="system-brand"><b>Energy<span>Ops</span></b><i></i><span>园区能源管理系统</span></div><div class="header-actions"><button class="language-toggle" onclick="toggleLanguage()">${interfaceLanguage === "zh" ? "EN" : "ZH"}</button><span class="env-tag">模拟环境</span><span class="header-region">科广校园　⌄</span><span class="usericon">${ico("user")}</span><span>演示用户</span></div></header><aside class="primary-rail">${[
       ["grid", "园区总览", "overview"],
       ["chart", "能源预测", "forecast"],
       ["bolt", "运行调度", "dispatch"],

@@ -26,7 +26,12 @@ function boot() {
       querySelectorAll: () => [],
     },
   });
-  for (const file of ["meeting-support.js", "app.js", "business-ui.js"])
+  for (const file of [
+    "meeting-support.js",
+    "i18n.js",
+    "app.js",
+    "business-ui.js",
+  ])
     vm.runInContext(
       fs.readFileSync(path.join(__dirname, "../dist", file), "utf8"),
       context,

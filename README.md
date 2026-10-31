@@ -98,4 +98,4 @@ GitHub 用于保存代码、分支和评审；现有公开站点由 Sites 托管
 
 预测模拟基准日为2026-10-31，可选数据范围2026-02-19至2026-11-01。未来页没有实际值和误差；此前输出保留快照。正式模型、因子、实际电价和控制结果仍需团队提供。执行反馈回传方式未定，本版不新增该功能。
 
-`dist/meeting-support.js` 为本轮的输入快照、比较依据、控制结果展示和界面语言辅助层；加载顺序为 engine → meeting-support → app → business-ui。修改脚本/样式后先运行 `npm run prepare:site` 更新缓存版本，再运行检查。
+`dist/meeting-support.js` 为本轮的输入快照、比较依据、控制结果展示辅助层；`dist/i18n.js` 独立管理中英文界面和英文报告。加载顺序为 engine → meeting-support → i18n → app → business-ui。修改脚本/样式后先运行 `npm run prepare:site` 更新缓存版本，再运行检查。

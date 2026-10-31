@@ -882,10 +882,12 @@ function showTeam() {
   );
 }
 function reportText(r) {
+  if (interfaceLanguage === "en") return englishReportText(r);
   const v = Engine.verify(r.plan);
   return `# EnergyOps 演示方案报告\n\n计划：${r.id}\n场景日期：${r.config.date}\n时区：Asia/Shanghai；粒度：1h\n目标：${r.plan.name}\n预测输出：${r.inputs?.forecast || "—"}\n参数输出：${r.inputs?.parameters || "—"}\n交接状态：导出不等于执行，本页面不发送控制指令。\n数据版本：DEMO-D${r.config.version}\n储能：${r.config.capacity} kWh / ${r.config.power} kW\n设备状态：${r.stateLabel}\n父计划：${r.parent || "无"}\n预计购电费用：${fmt(r.plan.cost, 2)} 元\n购电碳排：${fmt(r.plan.carbon, 2)} kgCO2\n弃光：${fmt(r.plan.curtail, 2)} kWh\n允许费用增幅：${r.config.budget}%（相对同设备状态的经济启发式基准）\n终态SOC：${fmt(r.plan.rows[23].soc, 2)}%\n独立复算：${v.ok ? "通过" : "失败"}；功率平衡最大残差 ${v.balance}\n电网检查：250 kW有功限额筛查${Math.max(...r.plan.rows.map((x) => x.grid)) <= 250 ? "通过" : "越限"}，未执行AC潮流\n人工审阅：${r.reviewed ? "已标记" : "待审阅"}\n\n## 数据与算法边界\n全部数据为合成，预测与参考值非实测。规则启发式扫描81组权重，不保证全局最优；AI为规则解释，未接入在线模型。不下发设备控制，不证明真实节费、减排、故障检测效果或投资回报。\n\n## 分工\n韦佳伶：负荷与光伏预测；凌俊楷：碳因子与光储参数、调度参与；高翰林：电网与故障恢复；梁紫昱：调度、Agent、页面与集成。正式专业模型待接入。\n\n## 逐时计划\n\n时段,负荷kW,光伏kW,购电kW,充电kW,放电kW,SOC%,电价元/kWh,碳因子kgCO2/kWh\n${r.plan.rows.map((x) => [x.h, x.load, x.pv, x.grid.toFixed(3), x.charge.toFixed(3), x.discharge.toFixed(3), x.soc.toFixed(3), x.price, x.carbon].join(",")).join("\n")}\n`;
 }
 function download(name, text, type = "text/markdown;charset=utf-8") {
+  if (interfaceLanguage === "en") name = englishFilename(name);
   const a = document.createElement("a"),
     url = URL.createObjectURL(new Blob(["\ufeff", text], { type }));
   a.href = url;
@@ -907,6 +909,10 @@ function exportEvent() {
   const f = S.fault;
   if (!f) return;
   const newer = S.records.find((r) => r.id === f.newId);
+  if (interfaceLanguage === "en") {
+    download("EVT-001-recovery-report.md", englishEventReport(f, newer));
+    return;
+  }
   download(
     "EVT-001-故障恢复报告.md",
     `# EnergyOps 仿真事件报告\n\n事件：EVT-001 / 14:00 / BESS-01 → SW-B1\n来源：用户手动注入的预设事件\n诊断：${f.diagnosed ? "预设储能支路断开，建议检查后复位" : "尚未生成"}\n反馈：${{ full: "恢复完成", partial: "部分恢复，功率35%", failed: "恢复失败，储能停用", none: "无有效反馈" }[f.feedback] || "尚无反馈"}\n原计划：${f.original.id}\n新计划：${f.newId || "未生成"}\n\n重规划为全日对照仿真，故障前动作保持一致；不声称在线实时恢复。终态能量差单独记录。\n\n${reportText(f.original)}\n${newer ? reportText(newer) : "无新计划，不覆盖原计划。"}\n`,

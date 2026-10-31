@@ -4,8 +4,8 @@
   "private": true,
   "description": "EnergyOps 园区能源管理前端交互演示",
   "scripts": {
-    "test": "node tests/engine.test.cjs && node tests/workflow.test.cjs && node tests/meeting.test.cjs",
-    "check": "node --check dist/engine.js && node --check dist/meeting-support.js && node --check dist/app.js && node --check dist/business-ui.js && node tools/cache-bust.cjs --check",
+    "test": "node tests/engine.test.cjs && node tests/workflow.test.cjs && node tests/meeting.test.cjs && node tests/english.test.cjs",
+    "check": "node --check dist/engine.js && node --check dist/meeting-support.js && node --check dist/i18n.js && node --check dist/app.js && node --check dist/business-ui.js && node tools/cache-bust.cjs --check",
     "start": "python3 -m http.server 8765 --directory dist",
     "prepare:site": "node tools/cache-bust.cjs"
   },
