@@ -99,6 +99,26 @@ function invalidateOutputs(kind = "all") {
   if (kind === "all" || kind === "parameters") S.outputs.parameters = null;
   S.current = null;
   S.fault = null;
+  for (const [name, ready] of [
+    ["forecast", forecastReady()],
+    ["parameters", parametersReady()],
+  ]) {
+    document
+      .querySelectorAll(`[data-output-results="${name}"]`)
+      .forEach((element) => {
+        element.hidden = !ready;
+      });
+    document
+      .querySelectorAll(`[data-output-action="${name}"]`)
+      .forEach((button) => {
+        button.disabled = !ready;
+      });
+    document
+      .querySelectorAll(`[data-output-empty="${name}"]`)
+      .forEach((element) => {
+        element.hidden = ready;
+      });
+  }
   // Preserve the edited field's focus; a full render follows query/output.
   if (!dispatchReady()) {
     document.querySelectorAll("[data-dispatch-entry]").forEach((button) => {
@@ -144,7 +164,17 @@ function btn(t, action, cl = "", disabled = false) {
     !recordInputsReady(S.records.find((record) => record.id === recordId))
   )
     disabled = true;
-  return `<button class="btn ${cl}" ${guarded ? "data-dispatch-entry" : ""} onclick="${action}" ${disabled ? "disabled" : ""}>${t}</button>`;
+  const outputKind =
+    ["forecast", "parameters"].includes(S.page) &&
+    action.includes("showEvidence(")
+      ? S.page
+      : null;
+  if (
+    outputKind &&
+    !(outputKind === "forecast" ? forecastReady() : parametersReady())
+  )
+    disabled = true;
+  return `<button class="btn ${cl}" ${guarded ? "data-dispatch-entry" : ""} ${outputKind ? `data-output-action="${outputKind}"` : ""} onclick="${action}" ${disabled ? "disabled" : ""}>${t}</button>`;
 }
 function toast(t) {
   $("#toast").textContent = t;
@@ -183,7 +213,7 @@ function panel(title, body, right = "") {
 function chart(series, unit = "kW", height = 210) {
   const W = 720,
     H = height + 42,
-    L = 44,
+    L = 66,
     R = 15,
     T = 15,
     B = 32,
@@ -192,6 +222,8 @@ function chart(series, unit = "kW", height = 210) {
   const x = (i) => L + (i * (W - L - R)) / 23,
     y = (v) => T + plotH - (v / max) * plotH;
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${series.map((s) => s.name).join("、")}曲线，单位${unit}">`;
+  const unitY = T + plotH / 2;
+  svg += `<line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="#c8cfd9"/><text class="axis-unit" x="16" y="${unitY}" transform="rotate(-90 16 ${unitY})" text-anchor="middle" fill="#737d8c" font-size="11">${unit}</text>`;
   for (let j = 0; j < 5; j++) {
     let val = (max * j) / 4;
     svg += `<line x1="${L}" y1="${y(val)}" x2="${W - R}" y2="${y(val)}" stroke="#edf0e9"/><text x="${L - 9}" y="${y(val) + 3}" text-anchor="end" fill="#92a08e" font-size="9">${fmt(val, val < 2 ? 2 : 0)}</text>`;
@@ -207,7 +239,7 @@ function chart(series, unit = "kW", height = 210) {
   for (let h = 0; h < 24; h++)
     svg += `<rect class="hoverline" x="${x(h) - 10}" y="${T}" width="${(W - L - R) / 23}" height="${plotH}" fill="transparent" onclick="selectHour(${h})"><title>${String(h).padStart(2, "0")}:00 · ${series.map((s) => s.name + " " + fmt(s.values[h]) + " " + unit).join(" / ")}</title></rect>`;
   svg += "</svg>";
-  return `<div class="legend">${series.map((s) => `<span><i style="background:${s.color}"></i>${s.name}</span>`).join("")}<span>${unit}</span></div><div class="chart">${svg}</div>`;
+  return `<div class="legend">${series.map((s) => `<span><i style="background:${s.color}"></i>${s.name}</span>`).join("")}</div><div class="chart">${svg}</div>`;
 }
 function selectHour(h) {
   S.hour = h;

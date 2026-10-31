@@ -125,3 +125,62 @@ for (const page of ["overview", "forecast", "parameters", "fault", "reports"]) {
 console.log(
   `Workflow gates passed: both output orders, all entry points, invalidation, recovery, invalid data, reset and scenario filter removal (${checks}+ checks).`,
 );
+
+const display = boot();
+let html = display.nodes.get("#app").innerHTML;
+assert.ok(
+  !html.includes('data-output-results="forecast"'),
+  "prediction results absent before output",
+);
+assert.ok(!html.includes('class="prediction-layout"'));
+assert.ok(!html.includes("平均绝对误差"));
+display.run("outputForecast()");
+html = display.nodes.get("#app").innerHTML;
+assert.ok(html.includes('data-output-results="forecast"'));
+assert.ok(html.includes('class="prediction-layout"'));
+assert.ok(html.includes("平均绝对误差"));
+display.run('go("parameters")');
+html = display.nodes.get("#app").innerHTML;
+assert.ok(html.includes('id="cap"'), "inputs remain editable before output");
+assert.ok(!html.includes('data-output-results="parameters"'));
+assert.ok(!html.includes("设备参数结果"));
+assert.ok(!html.includes("分时碳因子"));
+display.field("#cap", 320);
+display.field("#power", 60);
+display.run("saveAssets()");
+html = display.nodes.get("#app").innerHTML;
+assert.ok(html.includes('data-output-results="parameters"'));
+assert.ok(html.includes("设备参数结果"));
+assert.ok(html.includes("分时碳因子"));
+display.run('invalidateOutputs("parameters");render()');
+assert.ok(
+  !display.nodes
+    .get("#app")
+    .innerHTML.includes('data-output-results="parameters"'),
+);
+display.run('go("forecast")');
+assert.ok(
+  display.nodes
+    .get("#app")
+    .innerHTML.includes('data-output-results="forecast"'),
+  "unrelated parameter edit preserves prediction output",
+);
+display.run("invalidateOutputs();render()");
+assert.ok(
+  !display.nodes
+    .get("#app")
+    .innerHTML.includes('data-output-results="forecast"'),
+);
+for (const unit of ["kW", "%", "kgCO₂/kWh", "元/kWh"]) {
+  const rendered = display.run(
+    `chart([{name:"测试曲线",values:data.load,color:"#1677ff"}],${JSON.stringify(unit)})`,
+  );
+  const legend = rendered.match(/<div class="legend">([\s\S]*?)<\/div>/)[1];
+  assert.ok(!legend.includes(unit), "units do not appear in legends");
+  assert.ok(rendered.includes('class="axis-unit"'));
+  assert.ok(rendered.includes(`>${unit}</text>`), "units appear on y axis");
+  assert.ok(rendered.includes("rotate(-90"));
+}
+console.log(
+  "Output visibility and y-axis units passed: initial, output, invalidation and all four unit types.",
+);
