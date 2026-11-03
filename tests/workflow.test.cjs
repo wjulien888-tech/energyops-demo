@@ -94,6 +94,7 @@ assert.ok(
 );
 assert.ok(!html.includes('class="prediction-layout"'));
 assert.ok(!html.includes("平均绝对误差"));
+display.field("#day", "2026-02-19");
 display.run("outputForecast()");
 html = display.nodes.get("#app").innerHTML;
 assert.ok(html.includes('data-output-results="forecast"'));

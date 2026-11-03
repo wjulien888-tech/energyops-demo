@@ -66,20 +66,63 @@ w.run('go("fault")');
 assert.ok(w.nodes.get("#app").innerHTML.includes("未提供验收判据"));
 assert.ok(!w.nodes.get("#app").innerHTML.includes("稳定性通过</span>"));
 const f = boot();
-f.field("#day", "2026-11-01");
+f.field("#day", f.run("nextDay()"));
 f.run("outputForecast()");
 html = f.nodes.get("#app").innerHTML;
 assert.ok(!html.includes("实际值(kW)"));
 assert.ok(!html.includes('class="prediction-stats"'));
-assert.ok(html.includes("未来预测没有实际值"));
+assert.ok(html.includes("当天及未来预测没有完整实际值"));
 assert.equal(f.run("S.archive[0].data.actual"), undefined);
-f.field("#day", "2027-01-01");
+f.field("#day", f.run("nextDay(nextDay())"));
 assert.equal(f.run("applyFilters(true)"), false);
-assert.equal(f.run("S.date"), "2026-11-01");
+assert.equal(f.run("S.date"), f.run("nextDay()"));
 assert.equal(f.run('validDate("2026-99-10")'), false);
 assert.equal(f.run('translateText("输出预测数据")'), "输出预测数据");
 f.run('interfaceLanguage="en"');
 assert.equal(f.run('translateText("输出预测数据")'), "Generate forecast");
 console.log(
   "Meeting revision passed: immutable outputs, horizon, future observations withheld, budget recalculation, baseline, hourly carbon, safety result import validation, language labels.",
+);
+
+// Date boundaries use Shanghai calendar days, including across UTC midnight.
+assert.equal(
+  f.run('shanghaiDate(new Date("2026-11-03T15:59:59Z"))'),
+  "2026-11-03",
+);
+assert.equal(
+  f.run('shanghaiDate(new Date("2026-11-03T16:00:00Z"))'),
+  "2026-11-04",
+);
+assert.equal(f.run('nextDay("2026-12-31")'), "2027-01-01");
+const dates = boot();
+assert.equal(dates.run("S.date"), dates.run("nextDay()"));
+for (const language of ["zh", "en"]) {
+  dates.run(`interfaceLanguage='${language}'`);
+  for (const day of [
+    dates.run("shanghaiDate()"),
+    dates.run("nextDay()"),
+    "2026-02-19",
+  ]) {
+    dates.field("#day", day);
+    dates.run("outputForecast()");
+    const historical = dates.run("historicalDate()");
+    for (const tab of ["load", "pv"]) {
+      dates.run(`UI.forecast='${tab}';render()`);
+      const page = dates.nodes.get("#app").innerHTML;
+      assert.equal(
+        /<th>(实际值|Observed value)\(kW\)<\/th>/.test(page),
+        historical,
+      );
+      assert.equal(/<th>(偏差|Error)\(kW\)<\/th>/.test(page), historical);
+      assert.equal(page.includes("prediction-stats"), historical);
+      assert.equal(dates.run("!!S.archive.at(-1).data.actual"), historical);
+      assert.equal(dates.run("!!S.archive.at(-1).data.actualPV"), historical);
+    }
+  }
+}
+dates.run("resetDemo()");
+assert.equal(dates.run("S.date"), dates.run("nextDay()"));
+assert.equal(dates.run("forecastReady()"), false);
+console.log(
+  "Shanghai date boundaries, future/past charts, tables, metrics, snapshots and reset passed.",
 );

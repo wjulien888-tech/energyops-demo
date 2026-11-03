@@ -34,6 +34,7 @@ for (const call of ["showTeam()", 'showEvidence("verification")']) {
   w.run(call);
   scan(w.nodes.get("#detail-body").innerHTML, "empty-" + call);
 }
+w.field("#day", "2026-02-19");
 w.field("#cap", 320);
 w.field("#power", 60);
 w.run('go("forecast");outputForecast();saveAssets();go("dispatch");runPlan()');
@@ -81,7 +82,7 @@ for (const r of w.run("S.records")) {
 }
 
 w.run("S.tour=null;resetDemo()");
-w.field("#day", "2026-11-01");
+w.field("#day", w.run("nextDay()"));
 w.run('outputForecast();go("forecast")');
 collect("future");
 for (const file of [

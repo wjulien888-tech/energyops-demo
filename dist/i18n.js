@@ -764,3 +764,10 @@ Object.assign(translations, {
   "请先生成一个方案，查看有记录的检查结果。":
     "Generate a plan first to view recorded verification results.",
 });
+
+Object.assign(translations, {
+  "当天及未来预测没有完整实际值，不计算MAE/RMSE。":
+    "Today and future dates have no complete observed series; MAE/RMSE are unavailable.",
+  当前日期: "Current date",
+  "（上海时区）": "(Asia/Shanghai)",
+});

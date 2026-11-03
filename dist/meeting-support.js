@@ -1,7 +1,30 @@
 // Meeting revision: explicit operating scope, immutable evidence and offline result inputs.
-const MEETING = { asOf: "2026-10-31", first: "2026-02-19", last: "2026-11-01" };
+function shanghaiDate(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const part = (type) => parts.find((p) => p.type === type).value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+function nextDay(date = shanghaiDate()) {
+  return new Date(Date.parse(date + "T00:00:00Z") + 86400000)
+    .toISOString()
+    .slice(0, 10);
+}
+const MEETING = {
+  get asOf() {
+    return shanghaiDate();
+  },
+  first: "2026-02-19",
+  get last() {
+    return nextDay();
+  },
+};
 function historicalDate(date = S.date) {
-  return date <= MEETING.asOf;
+  return date < shanghaiDate();
 }
 function validDate(date) {
   return (

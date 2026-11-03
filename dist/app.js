@@ -26,7 +26,7 @@ const S = {
   power: 60,
   budget: 5,
   objective: "balanced",
-  date: "2026-02-19",
+  date: nextDay(),
   dataVersion: 1,
   records: [],
   current: null,
@@ -1004,7 +1004,7 @@ function resetDemo() {
   S.power = 60;
   S.budget = 5;
   S.objective = "balanced";
-  S.date = "2026-02-19";
+  S.date = nextDay();
   S.dataVersion = 1;
   S.records = [];
   S.current = null;
