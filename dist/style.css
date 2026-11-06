@@ -1631,3 +1631,6 @@ pre {
     display: flex;
   }
 }
+
+/* Trained load controls */
+.load-source-card{margin-bottom:16px;padding:16px 20px}.load-source-fields{display:flex;align-items:end;gap:22px;flex-wrap:wrap}.load-source-fields .field{min-width:220px}.load-source-fields select{min-width:220px}.load-source-summary{display:flex;flex-direction:column;gap:6px;padding-bottom:7px;color:#667085;font-size:12px}.load-source-summary strong{color:#344054;font-size:13px}

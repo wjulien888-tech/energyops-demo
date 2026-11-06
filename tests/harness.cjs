@@ -2,7 +2,7 @@ const vm = require("node:vm");
 const fs = require("node:fs");
 const path = require("node:path");
 const Engine = require("../dist/engine.js");
-function boot() {
+function boot(options = {}) {
   const nodes = new Map();
   const node = (id) => {
     if (!nodes.has(id))
@@ -20,7 +20,7 @@ function boot() {
     console,
     setTimeout: () => 0,
     clearTimeout() {},
-    window: { scrollTo() {} },
+    window: { scrollTo() {}, ENERGYOPS_DISABLE_JOINT_DEFAULT: !options.jointDefault, ENERGYOPS_DISABLE_MODEL_DEFAULT: !options.modelDefault },
     document: {
       querySelector: (id) => nodes.get(id) || null,
       querySelectorAll: () => [],
@@ -29,8 +29,13 @@ function boot() {
   for (const file of [
     "meeting-support.js",
     "i18n.js",
+    "load-forecast-data.js",
+    "load-forecast.js",
     "app.js",
     "business-ui.js",
+    "load-forecast-ui.js",
+    "joint-forecast-data.js",
+    "joint-forecast-ui.js",
   ])
     vm.runInContext(
       fs.readFileSync(path.join(__dirname, "../dist", file), "utf8"),
