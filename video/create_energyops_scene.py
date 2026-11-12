@@ -7,6 +7,7 @@ Run with Blender's Python, for example:
 from __future__ import annotations
 
 import csv
+import json
 import math
 import os
 from pathlib import Path
@@ -18,6 +19,7 @@ from mathutils import Vector
 ROOT = Path(__file__).resolve().parents[1]
 TIMELINE = ROOT / "outputs/video/timeline.csv"
 SAMPLE_TIMELINE = ROOT / "video/fixtures/timeline_sample.csv"
+SITE_CONFIG = ROOT / "config/hkust_gz_site.json"
 BLEND_OUT = ROOT / "outputs/video/energyops_campus.blend"
 
 
@@ -207,6 +209,13 @@ def load_rows():
     return rows, using_fixture
 
 
+def load_site_config():
+    if not SITE_CONFIG.exists():
+        return {"site_name": "港科广", "zones": []}
+    with SITE_CONFIG.open(encoding="utf-8") as handle:
+        return json.load(handle)
+
+
 def insert_interp(obj, data_path: str, frame: int, mode: str):
     obj.keyframe_insert(data_path=data_path, frame=frame)
     action = obj.animation_data.action if obj.animation_data else None
@@ -256,6 +265,7 @@ def move_beads(beads, start: Vector, end: Vector, power: float, phase: float, fr
 
 def main():
     rows, using_fixture = load_rows()
+    site = load_site_config()
     bpy.ops.wm.read_factory_settings(use_empty=True)
     init_materials()
     scene = bpy.context.scene
@@ -304,6 +314,35 @@ def main():
     cube("AdminRoof", (0, -6.2, 2.78), (2.6, 1.3, 0.08), CREAM)
     cube("PV_Admin_0", (-0.55, -6.2, 2.92), (0.7, 0.85, 0.025), PV)
     cube("PV_Admin_1", (0.55, -6.2, 2.92), (0.7, 0.85, 0.025), PV)
+    # Replace generic demo blocks with named HKUST(GZ) zones from the user map.
+    for obj in bpy.data.objects:
+        if obj.name.startswith(("Wing_", "Roof_", "Window_", "PV_Wing", "Hub", "Library", "PV_Library", "Admin", "PV_Admin")):
+            obj.hide_render = True
+    boundary = site.get("campus_boundary", {"width": 36.0, "depth": 30.0})
+    bpy.data.objects["CampusGround"].scale.x = float(boundary["width"]) / 36.0
+    bpy.data.objects["CampusGround"].scale.y = float(boundary["depth"]) / 26.0
+    for zone in site.get("zones", []):
+        if zone.get("type") == "public_realm":
+            continue
+        x, y = float(zone["x"]), float(zone["y"])
+        width, depth = float(zone["width"]), float(zone["depth"])
+        total_height = max(0.35, float(zone["height"]))
+        half_height = total_height / 2.0
+        building = cube(f"Zone_{zone['id']}", (x, y, half_height), (width / 2, depth / 2, half_height), BUILDING, 0.12)
+        building["zone_id"] = zone["id"]
+        building["source_confidence"] = zone.get("confidence", "unknown")
+        roof = cube(f"Roof_{zone['id']}", (x, y, total_height + 0.08), (width / 2 + 0.08, depth / 2 + 0.08, 0.08), ROOF)
+        roof["zone_id"] = zone["id"]
+        panel_count = max(2, min(6, int(width // 1.6)))
+        for panel_index in range(panel_count):
+            px = x - width / 2 + (panel_index + 0.5) * width / panel_count
+            panel = cube(f"PV_{zone['id']}_{panel_index}", (px, y, total_height + 0.24), (width / panel_count * 0.36, depth * 0.34, 0.03), PV)
+            panel.rotation_euler[2] = math.radians(8)
+        label = text(f"ZoneLabel_{zone['id']}", zone["name_zh"], (x, y, total_height + 0.55), 0.25)
+        label["zone_id"] = zone["id"]
+    high_street = next((z for z in site.get("zones", []) if z.get("id") == "high_street"), None)
+    if high_street:
+        cube("HighStreet", (float(high_street["x"]), float(high_street["y"]), 0.02), (float(high_street["width"]) / 2, float(high_street["depth"]) / 2, 0.02), FLOW_BATTERY)
     cube("FirebirdMark", (0, -8.0, 0.45), (0.18, 0.18, 0.45), CURTAIL)
     for idx, (x, y) in enumerate(((-4.5, -1.6), (4.5, -1.6), (-7.5, -3.5), (7.5, 6.5)), 1):
         cube(f"TreeTrunk_{idx}", (x, y, 0.45), (0.08, 0.08, 0.45), BRICK)
@@ -319,13 +358,15 @@ def main():
     for idx, x in enumerate((-8.0, -4.15, 0.0, 4.15, 8.0)):
         arcade_parts.append(cube(f"ArcadePost_{idx}", (x, 0.2, 1.45), (0.08, 0.08, 1.45), CREAM))
     arcade_parts.append(cube("PV_Arcade_Span", (0, 0.2, 2.98), (8.6, 0.72, 0.045), PV))
-    battery = cube("BatteryStorage", (10.2, -4.6, 0.85), (0.7, 0.45, 0.85), BATTERY, 0.04)
-    soc_bar = cube("BatterySOC", (10.2, -5.25, 0.15), (0.12, 0.05, 0.15), FLOW_BATTERY)
-    curtail_tower = cube("CurtailTower", (8.4, -4.6, 0.12), (0.28, 0.28, 0.12), CURTAIL)
-    substation = cube("EnergyCenter", (10.2, 4.8, 0.7), (0.85, 0.7, 0.7), GRID, 0.04)
-    grid_point = Vector((12.8, 4.8, 1.3))
-    battery_point = Vector((10.2, -4.6, 0.9))
-    substation_point = Vector((10.2, 4.8, 0.8))
+    energy_zone = next((z for z in site.get("zones", []) if z.get("id") == "energy_center"), {"x": 10.2, "y": 4.8})
+    energy_x, energy_y = float(energy_zone["x"]), float(energy_zone["y"])
+    battery = cube("BatteryStorage", (energy_x, energy_y, 0.85), (0.7, 0.45, 0.85), BATTERY, 0.04)
+    soc_bar = cube("BatterySOC", (energy_x, energy_y - 0.65, 0.15), (0.12, 0.05, 0.15), FLOW_BATTERY)
+    curtail_tower = cube("CurtailTower", (energy_x - 1.8, energy_y, 0.12), (0.28, 0.28, 0.12), CURTAIL)
+    substation = cube("EnergyCenter", (energy_x, energy_y, 0.7), (0.85, 0.7, 0.7), GRID, 0.04)
+    grid_point = Vector((energy_x + 2.6, energy_y, 1.3))
+    battery_point = Vector((energy_x, energy_y, 0.9))
+    substation_point = Vector((energy_x, energy_y, 0.8))
     load_point = Vector((0, 2.2, 1.1))
     pv_point = Vector((0, 2.4, 2.7))
     cube("GridConnection", (12.8, 4.8, 1.5), (0.1, 0.1, 1.5), GRID)
@@ -389,7 +430,7 @@ def main():
     hud_bar("TitleBar", (0.0, 7.6, -12), (6.2, 0.55, 0.04))
     hud_bar("StatusBar", (-2.2, -7.15, -12), (8.4, 1.15, 0.04))
     hud_bar("DayChart", (9.2, 0.6, -12), (3.3, 3.4, 0.04))
-    overlay("Title", "HKUST(GZ) 三版光伏布局", (0.0, 7.55, -11.2), 0.42)
+    overlay("Title", f"{site.get('site_name', '港科广')} · 三版光伏布局", (0.0, 7.55, -11.2), 0.42)
     overlay("Disclaimer", disclaimer, (-2.2, -7.85, -11.2), 0.22)
     max_signal = max(
         max(float(r["pv_available_kw"]) for r in rows),
