@@ -28,6 +28,22 @@ python video/render_energyops_animation.py
 
 这会生成 `outputs/video/energyops_preview.mp4`。它是数据驱动的 2.5D 预览；`energyops_campus.blend` 仍是正式三维场景源文件。
 
+## HPC 8 核 CPU
+
+Linux HPC 节点可直接运行：
+
+```bash
+bash video/render_hpc_cpu.sh
+```
+
+如果使用 Slurm：
+
+```bash
+sbatch video/render_hpc_cpu.slurm
+```
+
+脚本会优先使用 `xvfb-run`，以便在无图形界面的计算节点上运行 Blender；渲染器使用 CPU-safe 的 Workbench，并把最终 MP4 写到 `outputs/video/energyops_demo.mp4`。
+
 ## 边界
 
 视频标记为 `simulation_only=true` 和 `executable=false`。当前项目尚未接入配电网拓扑、节点电压、保护或动态稳定模型，因此视频不显示“电网稳定性通过”，只展示已验证的功率平衡、SOC 和调度约束。
