@@ -42,7 +42,7 @@ bash video/render_hpc_cpu.sh
 sbatch video/render_hpc_cpu.slurm
 ```
 
-脚本会优先使用 `xvfb-run`，以便在无图形界面的计算节点上运行 Blender；渲染器使用 CPU-safe 的 Workbench，并把最终 MP4 写到 `outputs/video/energyops_demo.mp4`。
+脚本会优先使用 `xvfb-run`，以便在无图形界面的计算节点上运行 Blender；渲染器使用 CPU-safe 的 Workbench，先渲染单帧，再输出全部帧，并把最终 MP4 写到 `outputs/video/energyops_demo.mp4`。CPU 线程数默认固定为 8。缺少时间轴字段时脚本会直接报错，不会把空值填成 0。使用示例数据时，画面和 `outputs/video/scene_source.log` 会标记 `fixture_type=synthetic_demo`、`simulation_only=true`、`executable=false`。
 
 ## 边界
 
