@@ -108,3 +108,15 @@ GitHub 用于保存代码、分支和评审；现有公开站点由 Sites 托管
 调度保留小时粒度，负荷按每四个15分钟功率取均值接入24小时计划，保证能量一致。档案记录模型版本、96点原序列、参考掩码和发报时间，报告区分训练负荷与合成光伏。接口接通不等于完成GRU/MPC闭环。
 
 详见 [负荷接入说明](docs/LOAD_FORECAST_INTEGRATION.md)。
+
+## EnergyOps 视频流水线
+
+`video/` 保存园区调度演示视频的最小流水线。它读取外部 EnergyOps 仿真结果中的 24 小时调度点，生成时间轴、低多边形 Blender 园区场景，并提供 FFmpeg 预览输出。该目录不重新运行优化器，也不宣称已经完成配电网潮流或动态稳定性验证。
+
+```bash
+.venv/bin/python scripts/export_video_timeline.py
+BLENDER_USER_CONFIG=/tmp/energyops-blender-config blender --background --python video/create_energyops_scene.py
+.venv/bin/python video/render_preview_video.py
+```
+
+详见 [video/README.md](video/README.md)。
