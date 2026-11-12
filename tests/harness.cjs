@@ -29,6 +29,8 @@ function boot(options = {}) {
   for (const file of [
     "meeting-support.js",
     "i18n.js",
+    "carbon-factor-data.js",
+    "carbon-factor.js",
     "load-forecast-data.js",
     "load-forecast.js",
     "app.js",
@@ -36,6 +38,7 @@ function boot(options = {}) {
     "load-forecast-ui.js",
     "joint-forecast-data.js",
     "joint-forecast-ui.js",
+    "carbon-factor-ui.js",
   ])
     vm.runInContext(
       fs.readFileSync(path.join(__dirname, "../dist", file), "utf8"),

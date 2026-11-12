@@ -4,8 +4,8 @@
   "private": true,
   "description": "EnergyOps \u56ed\u533a\u80fd\u6e90\u7ba1\u7406\u524d\u7aef\u4ea4\u4e92\u6f14\u793a",
   "scripts": {
-    "test": "node tests/engine.test.cjs && node tests/workflow.test.cjs && node tests/meeting.test.cjs && node tests/english.test.cjs && node tests/load-forecast.test.cjs && node tests/joint-forecast.test.cjs",
-    "check": "node --check dist/engine.js && node --check dist/meeting-support.js && node --check dist/i18n.js && node --check dist/app.js && node --check dist/business-ui.js && node --check dist/load-forecast.js && node --check dist/load-forecast-ui.js && node --check dist/load-forecast-data.js && node --check dist/joint-forecast-data.js && node --check dist/joint-forecast-ui.js && node tools/cache-bust.cjs --check",
+    "test": "node tests/engine.test.cjs && node tests/workflow.test.cjs && node tests/meeting.test.cjs && node tests/english.test.cjs && node tests/load-forecast.test.cjs && node tests/joint-forecast.test.cjs && node tests/carbon-factor.test.cjs",
+    "check": "node --check dist/engine.js && node --check dist/meeting-support.js && node --check dist/i18n.js && node --check dist/app.js && node --check dist/business-ui.js && node --check dist/load-forecast.js && node --check dist/load-forecast-ui.js && node --check dist/load-forecast-data.js && node --check dist/joint-forecast-data.js && node --check dist/joint-forecast-ui.js && node --check dist/carbon-factor-data.js && node --check dist/carbon-factor.js && node --check dist/carbon-factor-ui.js && node tools/cache-bust.cjs --check",
     "start": "python3 -m http.server 8765 --directory dist",
     "prepare:site": "node tools/cache-bust.cjs"
   },

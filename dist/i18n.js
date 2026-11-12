@@ -75,6 +75,18 @@ const translations = {
   "SOC下限 / 上限": "SOC min / max",
   初始SOC: "Initial SOC",
   分时碳因子: "Hourly carbon factors",
+  碳因子典型日: "Carbon typical day",
+  低碳典型日: "Low-carbon typical day",
+  中碳典型日: "Mid-carbon typical day",
+  高碳典型日: "High-carbon typical day",
+  "广东2025年S1情景K-means聚类中心":
+    "Guangdong 2025 scenario S1 K-means centroid",
+  "广东2025年S1情景K-means聚类中心，":
+    "Guangdong 2025 scenario S1 K-means centroid, ",
+  "。代表日 ": ". Representative date ",
+  " 天，年度权重 ": " days, annual weight ",
+  "。单位 kgCO₂/kWh，由 tCO₂/MWh 等值换算。仅核算购电碳排，不含全生命周期。与负荷、光伏不是同一地点、同一年份的同步实测。":
+    ". Unit kgCO₂/kWh, numerically equal to the source tCO₂/MWh. Grid electricity only, excluding lifecycle impacts. Not co-located or same-year measured with the load or PV series.",
   分时电价: "Time-of-use price",
   参数依据: "Parameter evidence",
   优化目标: "Objective",
@@ -514,7 +526,7 @@ Normal battery plans preserve initial energy. Fault cases can contain terminal-e
 ## Handoff and Scope
 
 Selecting, reviewing or exporting a plan does not execute it. An authorized operator must transfer it to the equipment controller. This page sends no equipment commands.
-All default data are synthetic. The rule-based candidate scan does not guarantee a global optimum. Forecast accuracy, actual cost savings, emission reductions and fault-detection performance are not demonstrated by these synthetic results. Production forecasting, carbon-factor and control models remain to be connected. Explanations are rule-based, without an online LLM.
+All default data are synthetic. Hourly carbon factors are the exception: they use a Guangdong 2025 scenario S1 K-means typical-day centroid and are not co-located with the load or PV. The rule-based candidate scan does not guarantee a global optimum. Forecast accuracy, actual cost savings, emission reductions and fault-detection performance are not demonstrated by these results. Production forecasting and control models remain to be connected. Explanations are rule-based, without an online LLM.
 
 ## Team Modules
 
@@ -623,7 +635,8 @@ Object.assign(translations, {
   合成预测接口与误差复算: "Synthetic forecast interface and error calculation",
   "碳因子、光储参数、调度参与":
     "Carbon factors, PV/battery parameters and dispatch",
-  "合成因子、设备参数联动": "Synthetic factors and linked asset inputs",
+  "广东2025年S1情景K-means典型日与设备参数联动":
+    "Guangdong 2025 scenario S1 K-means typical days and linked asset inputs",
   "电网分析、诊断与恢复": "Grid analysis, diagnosis and recovery",
   "限额筛查、预设故障与反馈分支":
     "Limit checks, preset faults and feedback branches",

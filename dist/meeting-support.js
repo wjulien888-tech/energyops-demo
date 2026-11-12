@@ -60,8 +60,11 @@ function rememberOutput(kind) {
             Date.parse(S.date + "T18:00:00+08:00") - 86400000,
           ).toISOString()
         : new Date().toISOString(),
-    version: kind === "forecast" ? "DEMO-F1" : "DEMO-C1",
-    source: "synthetic",
+    version:
+      kind === "forecast"
+        ? "DEMO-F1"
+        : data.carbonFactor?.version || "DEMO-C1",
+    source: kind === "parameters" && data.carbonFactor ? data.carbonFactor.id : "synthetic",
     capacity: S.capacity,
     power: S.power,
     key: kind === "forecast" ? forecastInputKey() : parameterInputKey(),
@@ -224,7 +227,7 @@ function outputHistory() {
   return panel(
     "专业模块输出记录",
     S.archive.length
-      ? `<div class="tablewrap"><table><thead><tr><th>输出编号</th><th>模块</th><th>分析日期</th><th>版本</th><th>来源</th><th>操作</th></tr></thead><tbody>${S.archive.map((r) => `<tr><td>${r.id}</td><td>${r.kind === "forecast" ? "预测" : "碳因子与设备"}</td><td>${r.date}</td><td>${r.version}</td><td>合成演示</td><td>${btn("查看", `showOutput('${r.id}')`, "small")}</td></tr>`).join("")}</tbody></table></div>`
+      ? `<div class="tablewrap"><table><thead><tr><th>输出编号</th><th>模块</th><th>分析日期</th><th>版本</th><th>来源</th><th>操作</th></tr></thead><tbody>${S.archive.map((r) => `<tr><td>${r.id}</td><td>${r.kind === "forecast" ? "预测" : "碳因子与设备"}</td><td>${r.date}</td><td>${r.version}</td><td>${r.kind === "parameters" && r.data?.carbonFactor ? r.data.carbonFactor.name : "合成演示"}</td><td>${btn("查看", `showOutput('${r.id}')`, "small")}</td></tr>`).join("")}</tbody></table></div>`
       : '<div class="empty">暂无专业模块输出</div>',
   );
 }

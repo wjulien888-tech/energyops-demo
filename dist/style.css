@@ -1527,7 +1527,7 @@ pre {
 }
 .asset-inputs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(160px, 240px));
+  grid-template-columns: repeat(3, minmax(160px, 240px));
   gap: 20px;
   padding: 8px 16px 20px;
 }
