@@ -1,0 +1,4 @@
+interface:
+  display_name: EnergyOps Video
+  short_description: Generate verified campus dispatch videos from local EnergyOps outputs.
+  default_prompt: Use $energyops-video to build or update the EnergyOps campus dispatch demonstration video.
