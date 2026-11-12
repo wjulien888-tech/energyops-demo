@@ -1,0 +1,35 @@
+{
+  "site_name": "香港科技大学（广州）港科广",
+  "site_id": "hkust_gz",
+  "address": "广州市南沙区笃学路1号",
+  "geometry_status": "user_map_screenshot_approximation",
+  "geometry_note": "功能分区依据港科大（广州）官方校园设计资料，并结合用户提供的港科广地图截图；未接入测绘/CAD/GIS坐标前，不应视为工程竣工图或现场测量模型。",
+  "sources": ["https://www.hkust-gz.edu.cn/about/campus-design/", "https://studyathkustgz.hkust-gz.edu.cn/detail-819", "user_provided_map_screenshots: IMG_0466.PNG, IMG_0467.PNG, IMG_0468.PNG"],
+  "campus_boundary": {"width": 36.0, "depth": 30.0},
+  "zones": [
+    {"id": "west_research", "name_zh": "西科研楼", "type": "academic", "x": -8.5, "y": 2.8, "width": 5.5, "depth": 3.2, "height": 3.4, "confidence": "high"},
+    {"id": "east_research", "name_zh": "东科研楼", "type": "academic", "x": 4.2, "y": 2.8, "width": 5.5, "depth": 3.2, "height": 3.4, "confidence": "high"},
+    {"id": "academic_research_hub", "name_zh": "学术研究中心", "type": "academic", "x": -2.0, "y": 2.6, "width": 6.0, "depth": 4.0, "height": 3.8, "confidence": "high"},
+    {"id": "library", "name_zh": "图书馆", "type": "library", "x": -1.8, "y": 7.0, "width": 4.6, "depth": 2.2, "height": 2.2, "confidence": "high"},
+    {"id": "admin_building", "name_zh": "行政办公楼", "type": "admin", "x": 2.6, "y": -3.3, "width": 5.0, "depth": 2.8, "height": 3.0, "confidence": "high"},
+    {"id": "c2_student_center", "name_zh": "C2 学生活动中心", "type": "student_life", "x": 8.0, "y": -3.5, "width": 5.5, "depth": 2.7, "height": 2.8, "confidence": "high"},
+    {"id": "hongniao_square", "name_zh": "红鸟广场", "type": "public_realm", "x": 3.0, "y": -6.0, "width": 4.0, "depth": 2.8, "height": 0.08, "confidence": "high"},
+    {"id": "sports_hall", "name_zh": "体育馆", "type": "sports", "x": 9.0, "y": 5.0, "width": 5.0, "depth": 3.4, "height": 2.2, "confidence": "high"},
+    {"id": "kindergarten", "name_zh": "小天鹅幼儿园", "type": "education", "x": 8.0, "y": 8.8, "width": 4.0, "depth": 2.2, "height": 1.6, "confidence": "high"},
+    {"id": "dorm_1a", "name_zh": "学生宿舍 1A", "type": "residential", "x": -8.0, "y": -5.4, "width": 3.5, "depth": 2.3, "height": 3.5, "confidence": "high"},
+    {"id": "dorm_1b", "name_zh": "学生宿舍 1B", "type": "residential", "x": -4.0, "y": -5.4, "width": 3.5, "depth": 2.3, "height": 3.5, "confidence": "high"},
+    {"id": "dorm_2b", "name_zh": "学生宿舍 2B", "type": "residential", "x": -0.2, "y": -5.4, "width": 3.2, "depth": 2.3, "height": 3.2, "confidence": "high"},
+    {"id": "dorm_6a", "name_zh": "学生宿舍 6A", "type": "residential", "x": 4.2, "y": -5.0, "width": 3.2, "depth": 2.3, "height": 3.2, "confidence": "high"},
+    {"id": "dorm_6b", "name_zh": "学生宿舍 6B", "type": "residential", "x": 7.8, "y": -5.0, "width": 3.2, "depth": 2.3, "height": 3.2, "confidence": "high"},
+    {"id": "dorm_6c", "name_zh": "学生宿舍 6C", "type": "residential", "x": 11.4, "y": -5.0, "width": 3.2, "depth": 2.3, "height": 3.2, "confidence": "high"},
+    {"id": "sustainable_lab", "name_zh": "可持续大气环境中央实验室", "type": "research", "x": -10.0, "y": 9.0, "width": 4.8, "depth": 2.6, "height": 2.0, "confidence": "high"},
+    {"id": "energy_center", "name_zh": "能源中心与公用设施", "type": "energy", "x": 14.0, "y": 8.0, "width": 3.0, "depth": 2.4, "height": 2.0, "confidence": "medium"},
+    {"id": "high_street", "name_zh": "高街与中央公共空间", "type": "public_realm", "x": 0.0, "y": -1.0, "width": 22.0, "depth": 1.2, "height": 0.08, "confidence": "high"}
+  ],
+  "energy_assets": {
+    "pv_roof_zone_ids": ["west_research", "east_research", "academic_research_hub", "library", "admin_building", "c2_student_center", "dorm_1a", "dorm_1b", "dorm_2b", "dorm_6a", "dorm_6b", "dorm_6c"],
+    "battery_zone_id": "energy_center",
+    "grid_connection_zone_id": "energy_center",
+    "load_zone_ids": ["west_research", "east_research", "academic_research_hub", "library", "admin_building", "c2_student_center", "sports_hall", "kindergarten", "dorm_1a", "dorm_1b", "dorm_2b", "dorm_6a", "dorm_6b", "dorm_6c", "sustainable_lab"]
+  }
+}
