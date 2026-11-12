@@ -17,6 +17,7 @@ from mathutils import Vector
 
 ROOT = Path(__file__).resolve().parents[1]
 TIMELINE = ROOT / "outputs/video/timeline.csv"
+SAMPLE_TIMELINE = ROOT / "video/fixtures/timeline_sample.csv"
 BLEND_OUT = ROOT / "outputs/video/energyops_campus.blend"
 
 
@@ -93,7 +94,8 @@ def cylinder_flow(name: str, start: Vector, end: Vector, mat, radius: float = 0.
 
 
 def load_rows():
-    with TIMELINE.open(encoding="utf-8", newline="") as handle:
+    timeline_path = TIMELINE if TIMELINE.exists() else SAMPLE_TIMELINE
+    with timeline_path.open(encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
 
 

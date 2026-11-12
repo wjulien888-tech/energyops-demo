@@ -1,0 +1,10 @@
+{
+  "fixture_type": "synthetic_demo",
+  "description": "脱敏的 24 小时园区调度示例，仅用于视频渲染回归。",
+  "simulation_only": true,
+  "executable": false,
+  "contains_real_identifiers": false,
+  "contains_exact_timestamps": false,
+  "network_stability": "not_connected",
+  "source": "rounded and de-identified demonstration pattern; not a measurement export"
+}
