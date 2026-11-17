@@ -6,6 +6,12 @@
 
 **当前没有实时后端推理 API。** 负荷模块已接入 DormPatch-96 / DormLinear-96 的离线训练输出，默认 DormPatch-96。碳因子已接入广东 2025 年 S1 情景 K-means 三类典型日（低碳、中碳、高碳），默认中碳典型日；光伏和电价仍为合成演示序列。调度仍由浏览器中的小时级简化规则计算，故障及恢复为预设案例，不下发设备指令。
 
+## 项目故事视频
+
+[观看或下载最终视频](video/releases/energyops-campus-story.mp4) · [中文字幕](video/releases/energyops-campus-story.zh-CN.srt)
+
+视频展示校园模型、光伏规划、工作台流程和电网稳定控制逻辑示意；画面中的控制关系为概念动画，工作台采用演示输入。
+
 ## 本地运行
 
 需要 Python 3。无需安装前端依赖。
