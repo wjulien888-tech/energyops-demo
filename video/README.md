@@ -16,7 +16,11 @@ python video/render_energyops_animation.py
 - `timeline_metadata.json`：输入哈希、Evidence ID、验证状态和边界；
 - `energyops_campus.blend`：自动生成的低多边形园区场景；
 - `frames/`：PNG 帧；
-- `energyops_demo.mp4`：MP4 视频。
+- `energyops_demo.mp4`：最终项目故事视频（仓库中已提供）；`energyops_demo.zh-CN.srt` 为对应字幕。
+
+[观看或下载最终视频](../outputs/video/energyops_demo.mp4) · [中文字幕](../outputs/video/energyops_demo.zh-CN.srt)
+
+注意：运行 `render_energyops_animation.py` 的默认输出路径也为 `outputs/video/energyops_demo.mp4`，会覆盖本地最终视频。需要重新渲染时，请通过 `--output` 指定其他路径。
 
 如果 Blender 在当前机器上无法初始化 Metal，可运行：
 

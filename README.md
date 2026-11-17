@@ -8,7 +8,7 @@
 
 ## 项目故事视频
 
-[观看或下载最终视频](video/releases/energyops-campus-story.mp4) · [中文字幕](video/releases/energyops-campus-story.zh-CN.srt)
+[观看或下载最终视频](outputs/video/energyops_demo.mp4) · [中文字幕](outputs/video/energyops_demo.zh-CN.srt)
 
 视频展示校园模型、光伏规划、工作台流程和电网稳定控制逻辑示意；画面中的控制关系为概念动画，工作台采用演示输入。
 
