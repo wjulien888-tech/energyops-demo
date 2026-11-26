@@ -2,10 +2,7 @@
 
 EnergyOps 从零碳校园建设前的**光储配置模拟**切入，最终面向园区管理人员的**日常能源调度**。规划阶段比较候选设备的运行表现。设备投运后，产品将读取设备规格、可用功率和并网约束，沿用日前计划与日内反馈流程。
 
-| 版本 | 体验范围 |
-| --- | --- |
-| GitHub `main` 的静态代码 | 归档光伏与负荷预测回放、碳因子及设备参数、三类小时调度方案、预设故障恢复与报告 |
-| 团队本地完整 Demo | 在上述流程上加入建设前配置比较、装机联动、逐小时反馈、DeepSeek 单方案入口和电网运行点交接 |
+GitHub `main` 包含当前完整 Demo。配置比较、预测、调度、逐小时反馈、电网结果导入和校园 3D 场景均可从克隆的仓库运行。自然语言入口需另外配置 DeepSeek 密钥和模型。
 
 [已发布演示站点](https://energyops-campus-demo.w-julien888.chatgpt.site/) · [项目故事视频](outputs/video/energyops_demo.mp4) · [中文字幕](outputs/video/energyops_demo.zh-CN.srt)
 
@@ -27,8 +24,8 @@ flowchart TD
     K --> H
 ```
 
-1. **建设前配置比较。** 在相同的 44 个回放日、分时电价、碳因子和 5% 费用增幅上限下，比较弃光、购电费、购电碳排和峰值购电。选定后，以固定装机和储能规格进入调度。
-2. **准备运行输入。** 归档 GRU 光伏与 DormPatch-96 负荷按月、日、时刻配对。每天 96 个 15 分钟功率点按每四点均值转换成 24 个小时输入，以保持电量一致。负荷是按比例放大的跨年回放，进入调度后为逐小时变化的固定园区总负荷。默认使用广东 2025 年 S1 中碳典型日因子和演示分时电价。预测和参数分别确认输出，变更输入后重新输出。
+1. **建设前配置比较。** 在相同的 44 个回放日、分时电价、碳因子和 5% 费用增幅上限下，比较弃光、购电费、购电碳排和峰值购电。调整装机时，页面更新装机依据、屋顶占比或超出量及组件数。选定后进入预测和参数页，储能容量与充放电功率仍可编辑。
+2. **准备运行输入。** 归档 GRU 光伏与 DormPatch-96 负荷按月、日、时刻配对。每天 96 个 15 分钟功率点按每四点均值转换成 24 个小时输入，以保持电量一致。负荷是按比例放大的跨年回放，进入调度后为逐小时变化的固定园区总负荷。默认使用广东 2025 年 S1 中碳典型日因子和演示分时电价。改光伏装机后重新输出预测和参数，仅改储能时重新输出参数。调度页显示本次计算采用的光伏装机、当日预测光伏电量和储能规格。
 3. **生成日前计划。** 常规入口提供经济优先、低碳优先和成本约束低碳。自然语言入口将「优先减碳，但购电费用最多增加 3%」之类的需求交给 DeepSeek，提取目标和 0–30% 的相对费用增幅上限，然后由确定性调度引擎生成并展示一套方案。自然语言入口需要配置本地 API。
 4. **逐小时反馈。** 每次推进一个仿真小时，记录模拟负荷、光伏和实际 SOC，沿用所选目标和设备边界更新余下时段。原始日前计划和已执行记录留在当前页面会话中。
 5. **电网交接。** 从已生成的日前计划导出指定小时的运行点，包括设备规格、功率和 SOC。电网组可返回秒级电压、频率、母线功率或电流曲线。导入会核对设备规格、计划编号、日期、版本和小时。若结果包含后续储能可用功率，在仿真推进到该小时结束后可应用该上限重算。正式稳定性结果与校园接入限额待电网组提供。
@@ -55,22 +52,17 @@ flowchart TD
 
 ## 本地启动
 
-**从 GitHub 克隆静态 Demo**，在仓库根目录运行：
+在仓库根目录运行以下命令，需要 Python 3.9 或更新版本，无需安装 Python 包。
 
 ```bash
-python3 -m http.server 8765 --bind 127.0.0.1 --directory dist
+python3 scripts/serve_demo.py --port 8766
 ```
 
-浏览器访问 [http://127.0.0.1:8765/](http://127.0.0.1:8765/)。在「负荷与光伏预测」页输出预测，再到「碳因子与设备参数」页输出参数，进入「日前调度方案」。
+浏览器打开 [http://127.0.0.1:8766/](http://127.0.0.1:8766/)。先在「建设前配置比较」选用储能，再依次输出预测和参数，进入「日前调度方案」。从侧栏可打开[校园 3D 场景](dist/campus3d/README.md)，查看采用合成楼栋负荷的三维示例。
 
-**从团队完整工作区启动 DeepSeek 入口**，使用 Python 3.11 或更新版本并安装工作区依赖，在工作区根目录运行：
+自然语言入口读取服务端的 `DEEPSEEK_API_KEY` 和 `DEEPSEEK_MODEL`，也可用 `--model` 指定模型。按你的 DeepSeek 账户配置填写两项后重启服务。使用其他兼容网关时可设置 `DEEPSEEK_BASE_URL`。API 密钥保留在启动服务的本机环境中。常规调度无需密钥。
 
-```bash
-python3.11 "04_代码/scripts/run_stage_f_dashboard.py" \
-  --dist-dir "03_Demo和视频展示/energyops-demo/dist" --port 8766
-```
-
-在服务端环境中设置 `DEEPSEEK_API_KEY`，也可使用服务支持的本地 secrets 文件。浏览器访问 [http://127.0.0.1:8766/](http://127.0.0.1:8766/)。常规调度入口可在无密钥时使用。
+只需静态演示时，也可以运行 `python3 -m http.server 8765 --bind 127.0.0.1 --directory dist`，再打开 [http://127.0.0.1:8765/](http://127.0.0.1:8765/)。
 
 ## 代码、检查与团队交接
 
@@ -80,9 +72,10 @@ python3.11 "04_代码/scripts/run_stage_f_dashboard.py" \
 | [`dist/business-ui.js`](dist/business-ui.js) | Demo 的业务页面 |
 | [`dist/joint-forecast-ui.js`](dist/joint-forecast-ui.js) | 联合预测回放与调度输入适配 |
 | [`dist/meeting-support.js`](dist/meeting-support.js) | 输出快照、对照与电网结果展示 |
-| [`docs/STABILITY_RESULT_FORMAT.md`](docs/STABILITY_RESULT_FORMAT.md) | GitHub 静态版的电网模型结果格式 |
+| [`scripts/serve_demo.py`](scripts/serve_demo.py) | 本地页面服务与可选的 DeepSeek 目标解析接口 |
+| [`docs/STABILITY_RESULT_FORMAT.md`](docs/STABILITY_RESULT_FORMAT.md) | 电网模型结果、小时运行点与功率反馈格式 |
 | [`video/README.md`](video/README.md) | 视频流水线与生成方式 |
 
-Node.js 18 或更新版本可运行 `npm test` 和 `npm run check`。修改页面素材后运行 `npm run prepare:site` 更新缓存版本。协作范围见[团队协作说明](docs/CONTRIBUTING.md)和[模型接入建议](docs/MODEL_INTEGRATION.md)。
+Node.js 18 或更新版本可运行 `npm test` 和 `npm run check`。后端测试命令为 `python3 -m unittest discover -s tests -p "test_*.py"`。修改页面素材后运行 `npm run prepare:site` 更新缓存版本。协作范围见[团队协作说明](docs/CONTRIBUTING.md)和[模型接入建议](docs/MODEL_INTEGRATION.md)。
 
 GitHub 用于代码与文档协作。公开站点由 Sites 托管，需要独立发布。

@@ -2,11 +2,11 @@
 
 ## 获取和提交代码
 
-仓库由 `wjulien888-tech` 账号管理。私有仓库成员需先接受邀请；请使用各自的 GitHub 账号，无需共享账号密码。
+团队使用各自的 GitHub 账号协作。
 
 ```bash
-git clone https://github.com/wjulien888-tech/energyops-demo.git
-cd energyops-demo
+git clone https://github.com/zoeliang0810-prog/energyops-video.git
+cd energyops-video
 git switch -c feature/forecast-api
 ```
 

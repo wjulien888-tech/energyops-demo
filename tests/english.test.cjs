@@ -41,6 +41,8 @@ w.run('go("forecast");outputForecast();saveAssets();go("dispatch");runPlan()');
 w.run("S.current=null;render()");
 collect("dispatch-preview");
 w.run("runPlan()");
+w.run("advanceHourlyFeedback()");
+collect("hourly-feedback");
 for (const curve of ["power", "battery", "soc", "carbon"]) {
   w.run(`UI.curve='${curve}';render()`);
   collect(curve);
