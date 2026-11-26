@@ -36,6 +36,7 @@
     weight = 0,
     state = "normal",
     prefix = null,
+    frozenHours = 14,
   ) {
     const capacity = Number(config.capacity),
       power = Number(config.power),
@@ -51,7 +52,7 @@
       low = sorted[7],
       high = sorted[16];
     for (let h = 0; h < 24; h++) {
-      if (prefix && h < 14) {
+      if (prefix && h < frozenHours) {
         const r = { ...prefix[h] };
         rows.push(r);
         energy = r.energy;
@@ -61,10 +62,17 @@
       let net = data.load[h] - data.pv[h],
         charge = 0,
         discharge = 0;
-      const p = state === "partial" && h >= 14 ? power * 0.35 : power;
+      let reason = active ? "hold" : "unavailable";
+      const statePower = state === "partial" && h >= 14 ? power * 0.35 : power;
+      const p = h >= (config.availableFromHour ?? 24)
+        ? Math.min(statePower, config.availablePower)
+        : statePower;
       if (active) {
-        if (net < 0) charge = Math.min(-net, p, (max - energy) / eff);
-        else if (score[h] < (low + high) / 2 && h < 21)
+        if (net < 0) {
+          reason = "pv_surplus";
+          charge = Math.min(-net, p, (max - energy) / eff);
+        } else if (score[h] < (low + high) / 2 && h < 21) {
+          reason = "lower_score";
           charge = Math.min(
             p *
               Math.min(
@@ -74,7 +82,8 @@
               ),
             (max - energy) / eff,
           );
-        else if (score[h] > (low + high) / 2)
+        } else if (score[h] > (low + high) / 2) {
+          reason = "higher_score";
           discharge = Math.min(
             p *
               Math.min(
@@ -85,7 +94,9 @@
             net,
             (energy - min) * eff,
           );
+        }
         if (h === 23) {
+          reason = "terminal";
           if (energy > initial)
             discharge = Math.min(p, Math.max(0, net), (energy - initial) * eff);
           else charge = Math.min(p, (initial - energy) / eff);
@@ -97,10 +108,12 @@
           ceiling = initial + remaining / eff;
         const projected = energy + charge * eff - discharge / eff;
         if (projected < floor) {
+          reason = "terminal";
           discharge = 0;
           charge = Math.min(p, Math.max(0, (floor - energy) / eff));
         }
         if (projected > ceiling) {
+          reason = "terminal";
           charge = 0;
           discharge = Math.min(
             p,
@@ -109,6 +122,7 @@
           );
         }
       }
+      const startSoc = 100 * energy / capacity;
       energy += charge * eff - discharge / eff;
       const grid = Math.max(0, net + charge - discharge),
         curtail = Math.max(0, -net - charge);
@@ -118,6 +132,9 @@
         pv: data.pv[h],
         charge,
         discharge,
+        powerLimit: active ? p : 0,
+        startSoc,
+        reason,
         grid,
         curtail,
         soc: (energy / capacity) * 100,
@@ -136,13 +153,15 @@
       power,
       weight,
       state,
+      availableFromHour: config.availableFromHour,
+      availablePower: config.availablePower,
       initial,
       terminal: energy,
     };
   }
-  function plans(data, config, state = "normal", prefix = null) {
+  function plans(data, config, state = "normal", prefix = null, frozenHours = 14) {
     const candidates = Array.from({ length: 81 }, (_, i) =>
-      calculate(data, config, i * 0.1, state, prefix),
+      calculate(data, config, i * 0.1, state, prefix, frozenHours),
     );
     const base = candidates.reduce((a, b) => (b.cost < a.cost ? b : a));
     const green = candidates.reduce((a, b) => (b.carbon < a.carbon ? b : a));
@@ -155,6 +174,57 @@
       { ...green, key: "green", name: "低碳优先" },
       { ...constrained, key: "balanced", name: "成本约束低碳" },
     ];
+  }
+  function planRemaining(data, config, dayAhead, history) {
+    return plans(data, config, "normal", history.map(entry => entry.actual), history.length)
+      .find(candidate => candidate.key === dayAhead.key);
+  }
+  function applyStorageFeedback(data, config, dayAhead, previous, power) {
+    const history = previous.history;
+    const limits = { availableFromHour: history.length, availablePower: power };
+    const forecast = previous.forecast || data;
+    const plan = planRemaining(forecast, { ...config, ...limits }, dayAhead, history);
+    return { ...previous, plan, limits };
+  }
+  function advanceSimulation(data, config, dayAhead, previous = null) {
+    const history = previous?.history || [];
+    const h = history.length;
+    if (h === dayAhead.rows.length) return previous;
+
+    const planned = (previous?.plan || dayAhead).rows[h];
+    const load = data.load[h] * (1 + 0.045 * Math.sin(h * 1.7));
+    const pvRatio = 0.92 + 0.07 * Math.cos(h * 1.3);
+    const pv = data.pv[h] * pvRatio;
+    const startEnergy = history.at(-1)?.actual.energy ?? dayAhead.initial;
+    const charge = planned.charge;
+    const discharge = Math.min(planned.discharge, Math.max(0, load - pv));
+    const energy = startEnergy + charge * 0.95 - discharge / 0.95;
+    const net = load - pv + charge - discharge;
+    const actual = {
+      ...planned,
+      startSoc: 100 * startEnergy / dayAhead.capacity,
+      load,
+      pv,
+      charge,
+      discharge,
+      grid: Math.max(0, net),
+      curtail: Math.max(0, -net),
+      energy,
+      soc: 100 * energy / dayAhead.capacity,
+    };
+    const nextHistory = [...history, { planned: { ...planned }, actual }];
+    const remaining = {
+      ...data,
+      load: data.load.map((value, hour) =>
+        hour > h ? Math.max(0, value + load - data.load[h]) : value,
+      ),
+      pv: data.pv.map((value, hour) =>
+        hour > h && data.pv[h] > 0 ? value * pvRatio : value,
+      ),
+    };
+    const limits = previous?.limits;
+    const plan = planRemaining(remaining, { ...config, ...limits }, dayAhead, nextHistory);
+    return { ...previous, history: nextHistory, plan, limits, forecast: remaining };
   }
   function verify(plan) {
     const balance = Math.max(
@@ -186,7 +256,9 @@
               ? 0
               : plan.power) +
             1e-6 &&
-        r.charge * r.discharge < 1e-6,
+        r.charge * r.discharge < 1e-6 &&
+        (r.h < (plan.availableFromHour ?? 24) ||
+          Math.max(r.charge, r.discharge) <= plan.availablePower + 1e-6),
     );
     const cost = plan.rows.reduce((s, r) => s + r.grid * r.price, 0),
       carbon = plan.rows.reduce((s, r) => s + r.grid * r.carbon, 0);
@@ -228,7 +300,7 @@
       ),
     };
   }
-  const api = { dataset, calculate, plans, verify, error, noStorage };
+  const api = { dataset, calculate, plans, verify, error, noStorage, advanceSimulation, applyStorageFeedback };
   root.Engine = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

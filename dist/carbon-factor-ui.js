@@ -10,7 +10,8 @@
     S.carbonProfile = id;
     S.dataVersion++;
     data = Engine.dataset(S.scenario);
-    draft = Engine.plans(data, S);
+    if (S.jointForecast) applyJointForecast();
+    else draft = Engine.plans(data, S);
     S.current = null;
     S.fault = null;
     render();

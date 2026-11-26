@@ -1,5 +1,111 @@
 let interfaceLanguage = "zh";
 const translations = {
+  当日预测光伏电量: "Forecast daily PV energy",
+  "校园光伏布置图，右下角为装机容量表": "Campus PV layout with the installed-capacity table at bottom right",
+  "校园光伏布置图 · 点击查看大图": "Campus PV layout · Open full-size image",
+  常用调度需求: "Suggested dispatch requests",
+  电费优先: "Lowest cost",
+  "低碳 · 电费最多增 3%": "Lower emissions · 3% cost cap",
+  "低碳 · 电费最多增 5%": "Lower emissions · 5% cost cap",
+  "以全天购电费用最低为目标生成调度方案。": "Generate a dispatch plan that minimizes daily grid purchase cost.",
+  "以全天购电碳排最低为目标生成调度方案。": "Generate a dispatch plan that minimizes daily grid emissions.",
+  "优先减碳，但购电费用比经济基准最多增加 3%。": "Minimize emissions with grid purchase costs at most 3% above the lowest-cost baseline.",
+  "优先减碳，但购电费用比经济基准最多增加 5%。": "Minimize emissions with grid purchase costs at most 5% above the lowest-cost baseline.",
+  屋顶分期建设情景: "Phased rooftop scenario",
+  "校园布置图第 1 页容量表列出屋顶 10,350.6 kWp、墙面 9,422.4 kWp、停车场 304.2 kWp，合计 20,077.2 kWp。":
+    "Page 1 of the campus layout lists 10,350.6 kWp on roofs, 9,422.4 kWp on walls and 304.2 kWp over parking, totaling 20,077.2 kWp.",
+  "具体屋顶、结构与并网条件待校核。仿真出力沿用按装机比例缩放的全建预测曲线。":
+    "Roof selection, structural checks and grid connection are pending. The simulation scales the full-build forecast by the installed-capacity ratio.",
+  "来源：《香港科技大学广州(1).pdf》第 1 页右下角容量表。":
+    "Source: campus PV layout PDF, bottom-right capacity table on page 1.",
+  "演示假设充放电共用同一功率上限。实际放电功率还需按目标削峰幅度、持续时长和并网限额校核。":
+    "The demo uses a shared charge and discharge power limit. Validate discharge power against the peak reduction target, duration and connection limit.",
+  电池充放电逻辑: "Battery dispatch logic",
+  计划动作: "Scheduled action",
+  模拟执行结果: "Simulated execution",
+  当前时段未触发充放电规则: "No charge or discharge rule triggered",
+  储能停用: "Battery unavailable",
+  优先用富余光伏充电: "Prioritize charging from surplus PV",
+  "电价与碳因子加权分数偏低，优先安排充电": "Charge when the weighted price and carbon score is low",
+  "加权分数偏高，安排放电减少购电": "Discharge when the weighted score is high to reduce grid purchases",
+  "按日末 SOC 目标调整动作": "Adjust for the end-of-day SOC target",
+  当小时功率上限: "Hourly power limit",
+  电网碳因子: "Grid carbon factor",
+  电网: "Grid",
+  电价: "Electricity price",
+  待机: "Idle",
+  "动作受功率、SOC 和日末目标约束。若电池满或充电功率不足，多余光伏计入弃光。":
+    "Actions respect power, SOC and end-of-day targets. Excess PV is curtailed when the battery is full or charging power is exhausted.",
+  "请输入 1–20,077.2 kWp 的候选装机容量": "Enter a candidate PV capacity from 1 to 20,077.2 kWp",
+  "自定义装机（kWp）": "Custom PV capacity (kWp)",
+  应用装机: "Apply PV capacity",
+  "光伏出力 = 全建基准预测 × 候选装机 ÷ 20,077.2 kWp。装机变化会更新预测与调度。":
+    "PV output equals the full-build forecast scaled by candidate capacity divided by 20,077.2 kWp. Capacity changes update the forecast and schedule.",
+  "无储能时，小时最大光伏富余": "Without storage, maximum hourly PV surplus",
+  "单日最大光伏富余": "Maximum daily PV surplus",
+  "功率参考小时富余峰值；容量参考可用 SOC 窗口、效率和富余持续时间。600 kWh 在 SOC 15%–90% 下有 450 kWh 的可用能量窗口。":
+    "Size power against the hourly surplus peak and energy against the SOC window, efficiency and duration. A 600 kWh battery has a 450 kWh energy window at 15%–90% SOC.",
+  模型反馈储能可用功率: "Available battery power from model",
+  后续储能可用功率: "Available battery power for remaining hours",
+  "仿真执行到所选小时结束后，可以应用反馈重算。": "Apply feedback and replan once the selected simulation hour has finished.",
+  应用功率反馈并重算: "Apply power feedback and replan",
+  反馈中的储能可用功率超出设备范围: "Reported battery power is outside equipment limits",
+  建设前配置比较: "Pre-construction configuration comparison",
+  "比较候选设备规格，选定后进入一次完整的园区调度仿真。": "Compare candidate equipment, then simulate daily campus dispatch for the selected configuration.",
+  候选光伏装机: "Candidate PV capacity",
+  主线: "Main case",
+  全建压力测试: "Full-build stress test",
+  "跨年预测回放；模型负荷 ×100；禁止馈电。比较使用同一分时电价、碳因子和 5% 费用上限。": "Cross-year forecast replay with load scaled by 100 and grid export disabled. Comparison uses common tariffs, carbon factors and a 5% cost cap.",
+  比较候选储能: "Compare storage configurations",
+  "个样本日": "sample days",
+  日前计划指标: "Day-ahead plan metrics",
+  独立数值复算: "Independent numerical verification",
+  电网校核: "Grid check",
+  "未接入 AC 潮流，不声称电网安全验收。": "AC power flow and grid acceptance are pending.",
+  "非 AC 潮流": "active-power screen",
+  "购电费用 (元)": "Grid purchase cost (CNY)",
+  "峰值购电 (kW)": "Peak grid import (kW)",
+  "弃光 (kWh)": "PV curtailment (kWh)",
+  "购电碳排 (kgCO₂)": "Grid emissions (kgCO₂)",
+  选择: "Select",
+  "功率／容量": "Power / capacity",
+  选用并开始调度: "Select for dispatch",
+  "候选储能容量（kWh）": "Candidate storage capacity (kWh)",
+  "候选充放电功率（kW）": "Candidate charge/discharge power (kW)",
+  接入限额待电网组确认: "Grid connection limit pending",
+  待验证: "Pending verification",
+  运行点小时: "Operating-point hour",
+  光伏利用: "PV used",
+  导出运行点: "Export operating point",
+  "生成调度方案后可选择并导出运行点。": "Generate a schedule to select and export an operating point.",
+  "模型结果须匹配当前计划、日期、版本和小时": "Results must match the current plan, date, version and hour",
+  "容量应为100—1000 kWh，功率应为20—1000 kW": "Capacity must be 100–1000 kWh and power 20–1000 kW",
+  复算: "verification",
+  用自然语言指定调度目标: "Describe your dispatch objective",
+  管理人员需求: "Manager request",
+  "优先减碳，但购电费用比经济基准最多增加 3%": "Prioritize emissions reductions with a purchase cost increase of at most 3%.",
+  "DeepSeek Mock · 本地规则解析": "DeepSeek Mock · Local rules",
+  解析并生成方案: "Interpret and generate plan",
+  请输入调度需求: "Enter a dispatch request",
+  "请选择电费优先、低碳优先，或指定 0–30% 的减碳费用增幅上限": "Choose lowest cost, lower emissions, or lower emissions with a 0–30% cost cap",
+  调度方案复算失败: "Dispatch verification failed",
+  按需求生成的调度方案: "Requested dispatch plan",
+  模拟解析目标: "Objective interpreted by the mock",
+  相对经济基准的费用增幅上限: "Cost increase limit relative to the economic baseline",
+  "校园 3D 数字孪生": "Campus 3D digital twin",
+  逐小时反馈仿真: "Hourly feedback simulation",
+  "推进 1 小时": "Advance one hour",
+  运行至日末: "Simulate to end of day",
+  "每次推进 1 个仿真小时。记录实际负荷、光伏和小时末 SOC，再更新剩余时段。":
+    "Each step records simulated load, PV and end-of-hour SOC, then replans the remaining hours.",
+  "已执行与剩余计划合计": "Executed and planned total",
+  已执行: "Executed",
+  全天结果: "Full-day results",
+  更新后计划: "Updated plan",
+  日末电量偏差: "End-of-day energy deviation",
+  小时末: "End-of-hour",
+  小时: "hours",
+  滚动方案复算失败: "Rolling plan verification failed",
   园区能源管理系统: "Campus Energy Management",
   能源运行管理: "Energy Operations",
   业务管理: "Management",
@@ -497,7 +603,7 @@ Analysis date: ${r.config.date}
 Timezone: Asia/Shanghai
 Interval: 1 hour
 Objective: ${translateText(p.name)}
-Forecast output: ${r.inputs.forecast}
+${r.intent ? "Objective source: DeepSeek mock (local rules)\n" : ""}Forecast output: ${r.inputs.forecast}
 Parameter output: ${r.inputs.parameters}
 Data version: DEMO-D${r.config.version}
 Battery: ${r.config.capacity} kWh / ${r.config.power} kW
@@ -506,12 +612,13 @@ Parent plan: ${r.parent || "None"}
 Estimated grid cost: ${p.cost.toFixed(2)} CNY
 Estimated grid emissions: ${p.carbon.toFixed(2)} kgCO2
 Curtailed energy: ${p.curtail.toFixed(2)} kWh
-Cost-increase cap: ${r.config.budget}% above the same-state economic candidate
+Cost-increase cap: ${r.intent && r.intent.max_cost_increase_pct === null ? "Not set" : r.config.budget + "% above the same-state economic candidate"}
 Terminal SOC: ${p.rows[23].soc.toFixed(2)}%
 Terminal energy difference: ${(p.terminal - p.initial).toFixed(3)} kWh
 Independent verification: ${v.ok ? "Passed" : "Failed"}
 Maximum power balance residual: ${v.balance} kW
-Grid scope: 250 kW active-power limit check only; no AC power flow or dynamic-stability approval
+PV capacity: ${r.config.pvKwp} kWp
+Grid scope: ${r.config.gridLimitKw == null ? "Connection limit pending" : r.config.gridLimitKw + " kW active-power limit screen"}; no dynamic-stability approval
 Human review: ${r.reviewed ? "Reviewed" : "Pending"}
 
 ## Comparable No-Battery Baseline
@@ -526,7 +633,7 @@ Normal battery plans preserve initial energy. Fault cases can contain terminal-e
 ## Handoff and Scope
 
 Selecting, reviewing or exporting a plan does not execute it. An authorized operator must transfer it to the equipment controller. This page sends no equipment commands.
-All default data are synthetic. Hourly carbon factors are the exception: they use a Guangdong 2025 scenario S1 K-means typical-day centroid and are not co-located with the load or PV. The rule-based candidate scan does not guarantee a global optimum. Forecast accuracy, actual cost savings, emission reductions and fault-detection performance are not demonstrated by these results. Production forecasting and control models remain to be connected. Explanations are rule-based, without an online LLM.
+All default data are synthetic. Hourly carbon factors are the exception: they use a Guangdong 2025 scenario S1 K-means typical-day centroid and are not co-located with the load or PV. The rule-based candidate scan does not guarantee a global optimum. Forecast accuracy, actual cost savings, emission reductions and fault-detection performance are not demonstrated by these results. Production forecasting and control models remain to be connected. Plan explanations use fixed rules.
 
 ## Team Modules
 

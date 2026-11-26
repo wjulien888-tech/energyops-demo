@@ -22,6 +22,7 @@ const owners = {
 const S = {
   page: "forecast",
   scenario: "sunny",
+  planningPvKwp: 6000,
   capacity: 320,
   power: 60,
   budget: 5,
@@ -66,7 +67,7 @@ function forecastInputKey() {
   return JSON.stringify([S.date, data.hours, data.load, data.pv]);
 }
 function parameterInputKey() {
-  return JSON.stringify([S.date, S.capacity, S.power, data.carbon, data.price]);
+  return JSON.stringify([S.date, S.capacity, S.power, currentPvKwp(), data.carbon, data.price]);
 }
 function forecastReady() {
   return (
@@ -85,7 +86,7 @@ function parametersReady() {
     S.capacity <= 1000 &&
     Number.isFinite(S.power) &&
     S.power >= 20 &&
-    S.power <= 100 &&
+    S.power <= 1000 &&
     S.outputs.parameters === parameterInputKey()
   );
 }
@@ -198,6 +199,12 @@ function go(page) {
 }
 function plan() {
   return S.current?.plan || draft.find((p) => p.key === S.objective);
+}
+function currentPvKwp() {
+  return S.jointForecast ? S.planningPvKwp : 150;
+}
+function gridScreenLabel() {
+  return S.jointForecast ? "接入限额待电网组确认" : "250 kW 有功限额";
 }
 function currentConfig() {
   return (
@@ -404,7 +411,7 @@ function change(k, v) {
   if (k === "date" && !v) return;
   if (["capacity", "power", "budget"].includes(k)) {
     v = Number(v);
-    const limits = { capacity: [100, 1000], power: [20, 100], budget: [0, 30] };
+    const limits = { capacity: [100, 1000], power: [20, 1000], budget: [0, 30] };
     if (!Number.isFinite(v) || v < limits[k][0] || v > limits[k][1]) {
       toast(`请输入 ${limits[k][0]}–${limits[k][1]} 范围内的数值`);
       render();
@@ -496,6 +503,7 @@ function choose(key) {
     const record = {
       ...old,
       feedback: undefined,
+      hourlyFeedback: undefined,
       createdAt: new Date().toISOString(),
       id: nextId(),
       plan: old.alternatives.find((p) => p.key === key),
@@ -512,7 +520,7 @@ function choose(key) {
 function nextId() {
   return "EO-" + String(S.records.length + 1).padStart(3, "0");
 }
-function runPlan(state = "normal", parent = null, prefix = null) {
+function runPlan(state = "normal", parent = null, prefix = null, intent = null) {
   if (!dispatchReady()) return false;
   if (S.missing) {
     toast("碳因子缺失，生成已阻断");
@@ -525,8 +533,16 @@ function runPlan(state = "normal", parent = null, prefix = null) {
     scenario: S.scenario,
     date: S.date,
     version: S.dataVersion,
+    pvKwp: currentPvKwp(),
+    gridLimitKw: S.jointForecast ? null : 250,
   };
+  if (intent?.max_cost_increase_pct != null) cfg.budget = intent.max_cost_increase_pct;
   const ps = Engine.plans(data, cfg, state, prefix);
+  const selectedPlan = ps.find((p) => p.key === (intent?.objective || S.objective));
+  if (intent && !Engine.verify(selectedPlan).ok) {
+    toast("调度方案复算失败");
+    return false;
+  }
   const record = {
     id: nextId(),
     created: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
@@ -535,7 +551,8 @@ function runPlan(state = "normal", parent = null, prefix = null) {
     inputs: activeInputs(),
     createdAt: new Date().toISOString(),
     alternatives: ps,
-    plan: ps.find((p) => p.key === S.objective),
+    plan: selectedPlan,
+    intent,
     stateLabel: {
       normal: "正常设备状态",
       full: "恢复完成",
@@ -590,7 +607,7 @@ function ask(type) {
     S.answer = `本方案费用 ${fmt(p.cost)} 元；同输入经济基准 ${fmt(base.cost)} 元，增幅 ${fmt((p.cost / base.cost - 1) * 100)}%。预算上限 ${fmt(base.cost * (1 + currentConfig().budget / 100))} 元，因此${p.cost <= base.cost * (1 + currentConfig().budget / 100) + 1e-6 ? "满足" : "超出"} ${currentConfig().budget}% 费用增幅约束。<br><br>购电碳排 ${fmt(p.carbon)} kgCO₂。${p.carbon >= base.carbon - 1e-6 ? "当前候选未产生额外减碳收益，不保证每个配置都有改善。" : ""}`;
   if (type === "checks")
     S.answer = S.current
-      ? `独立复算：${v.ok ? "通过" : "失败"}。最大功率平衡残差 ${v.balance.toExponential(1)} kW。<br><br>演示电网检查仅筛查 250 kW 变压器有功限额，不覆盖电压、无功或动态稳定性。<br><br>${btn("打开验证依据", "showEvidence('verification')", "small")}`
+      ? `独立复算：${v.ok ? "通过" : "失败"}。最大功率平衡残差 ${v.balance.toExponential(1)} kW。<br><br>电网校核：${gridScreenLabel()}。<br><br>${btn("打开验证依据", "showEvidence('verification')", "small")}`
       : "请先生成方案，再查看有记录的验证结果。";
   render();
 }
@@ -607,7 +624,7 @@ function topology() {
             none: "无反馈",
           }[f.feedback];
   const faulted = f && f.feedback !== "full";
-  return `<div class="topology"><svg viewBox="0 0 660 290" role="img" aria-label="园区简化拓扑：电网连接变压器和母线，负荷、光伏、储能连接母线"><defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".8" fill="#dfe7dc"/></pattern></defs><rect width="660" height="290" fill="url(#dots)"/><g stroke="#7f9c82" stroke-width="2" fill="none"><path d="M60 140H150M210 140H300M300 70V220M300 80H470M300 145H470M300 215H470"/><path d="M400 215H470" stroke="${faulted ? "#c66b59" : "#4c9875"}" ${faulted ? 'stroke-dasharray="6 4"' : ""}/></g><g fill="#f8fbf5" stroke="#bdcfb7"><rect x="23" y="112" width="73" height="56" rx="7"/><rect x="150" y="112" width="75" height="56" rx="7"/><rect x="470" y="52" width="151" height="56" rx="7"/><rect x="470" y="117" width="151" height="56" rx="7"/><rect x="470" y="187" width="151" height="56" rx="7" stroke="${faulted ? "#d99785" : "#bdcfb7"}"/></g><g fill="#355b43" font-size="12" text-anchor="middle"><text x="60" y="137">公共电网</text><text x="60" y="153" font-size="9" fill="#889c82">GRID</text><text x="188" y="136">变压器</text><text x="188" y="152" font-size="9">250 kW 限额</text><text x="545" y="76">园区负荷</text><text x="545" y="94" font-size="9">24h 合成曲线</text><text x="545" y="140">光伏系统</text><text x="545" y="158" font-size="9">150 kWp · 假设</text><text x="545" y="210">储能支路 BESS-01</text><text x="545" y="230" font-size="10" fill="${faulted ? "#b25c47" : "#4f8c68"}">${status}</text><text x="300" y="255" font-size="10" fill="#8b9d83">园区母线 · 示意连接关系，不含真实电气参数</text></g>${faulted ? '<circle cx="400" cy="215" r="11" fill="#fae3d8"/><text x="400" y="219" text-anchor="middle" fill="#bd6049" font-size="13">!</text>' : ""}</svg></div>`;
+  return `<div class="topology"><svg viewBox="0 0 660 290" role="img" aria-label="园区简化拓扑：电网连接变压器和母线，负荷、光伏、储能连接母线"><defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".8" fill="#dfe7dc"/></pattern></defs><rect width="660" height="290" fill="url(#dots)"/><g stroke="#7f9c82" stroke-width="2" fill="none"><path d="M60 140H150M210 140H300M300 70V220M300 80H470M300 145H470M300 215H470"/><path d="M400 215H470" stroke="${faulted ? "#c66b59" : "#4c9875"}" ${faulted ? 'stroke-dasharray="6 4"' : ""}/></g><g fill="#f8fbf5" stroke="#bdcfb7"><rect x="23" y="112" width="73" height="56" rx="7"/><rect x="150" y="112" width="75" height="56" rx="7"/><rect x="470" y="52" width="151" height="56" rx="7"/><rect x="470" y="117" width="151" height="56" rx="7"/><rect x="470" y="187" width="151" height="56" rx="7" stroke="${faulted ? "#d99785" : "#bdcfb7"}"/></g><g fill="#355b43" font-size="12" text-anchor="middle"><text x="60" y="137">公共电网</text><text x="60" y="153" font-size="9" fill="#889c82">GRID</text><text x="188" y="136">变压器</text><text x="188" y="152" font-size="9">${gridScreenLabel()}</text><text x="545" y="76">园区负荷</text><text x="545" y="94" font-size="9">24h 合成曲线</text><text x="545" y="140">光伏系统</text><text x="545" y="158" font-size="9">${currentPvKwp()} kWp</text><text x="545" y="210">储能支路 BESS-01</text><text x="545" y="230" font-size="10" fill="${faulted ? "#b25c47" : "#4f8c68"}">${status}</text><text x="300" y="255" font-size="10" fill="#8b9d83">园区母线 · 示意连接关系，不含真实电气参数</text></g>${faulted ? '<circle cx="400" cy="215" r="11" fill="#fae3d8"/><text x="400" y="219" text-anchor="middle" fill="#bd6049" font-size="13">!</text>' : ""}</svg></div>`;
 }
 function fault() {
   const f = S.fault,
@@ -675,7 +692,7 @@ function fault() {
             )}${btn("重置此事件", "S.fault=null;render()", "small")}</div>${f.feedback === "none" ? '<div class="notice error" style="margin-top:16px;margin-bottom:0">未获得有效反馈，不能覆盖设备状态或据此生成正式新计划。</div>' : ""}</div>`,
         )
       : ""
-  }${replanned ? `<div style="height:20px"></div>${panel("故障前后方案关联", `<div class="tablewrap"><table><thead><tr><th>方案</th><th>设备状态</th><th>费用 / 元</th><th>碳排 / kgCO₂</th><th>终态 SOC</th><th>独立复算</th></tr></thead><tbody>${[f.original, replanned].map((r) => `<tr><td>${r.id} · ${r.plan.name}</td><td>${r.stateLabel}</td><td>${fmt(r.plan.cost)}</td><td>${fmt(r.plan.carbon)}</td><td>${fmt(r.plan.rows[23].soc)}%</td><td>${Engine.verify(r.plan).ok ? "通过" : "失败"}</td></tr>`).join("")}</tbody></table></div><div class="card-pad"><p class="sub">同一日期、目标和数据版本，设备状态改变。若设备受限导致终态能量不同，费用差异包含终态差异，不能全部归因为策略优劣。</p><div class="actions" style="margin-top:15px">${btn("查看新计划曲线 →", "go('dispatch')", "primary")}${btn("导出事件报告", "exportEvent()")}</div></div>`)}` : ""}<div style="height:20px"></div>${panel("电网分析模块 · 输入与检查范围", `<div class="card-pad"><div class="detailbox"><div><b>网络输入</b><p>示意母线与设备映射、假设变压器限额。尚无真实线路阻抗、电压与无功参数。</p></div><div><b>演示校核</b><p>对计划最大购电功率进行 250 kW 有功限额筛查。未接入 AC 潮流，不声称电网安全验收。</p></div><div><b>恢复交付</b><p>事件、诊断依据、恢复建议、反馈状态及版本。有效反馈传递给调度模块形成关联新计划。</p></div></div></div>`, badge("负责人 · 高翰林"))}`;
+  }${replanned ? `<div style="height:20px"></div>${panel("故障前后方案关联", `<div class="tablewrap"><table><thead><tr><th>方案</th><th>设备状态</th><th>费用 / 元</th><th>碳排 / kgCO₂</th><th>终态 SOC</th><th>独立复算</th></tr></thead><tbody>${[f.original, replanned].map((r) => `<tr><td>${r.id} · ${r.plan.name}</td><td>${r.stateLabel}</td><td>${fmt(r.plan.cost)}</td><td>${fmt(r.plan.carbon)}</td><td>${fmt(r.plan.rows[23].soc)}%</td><td>${Engine.verify(r.plan).ok ? "通过" : "失败"}</td></tr>`).join("")}</tbody></table></div><div class="card-pad"><p class="sub">同一日期、目标和数据版本，设备状态改变。若设备受限导致终态能量不同，费用差异包含终态差异，不能全部归因为策略优劣。</p><div class="actions" style="margin-top:15px">${btn("查看新计划曲线 →", "go('dispatch')", "primary")}${btn("导出事件报告", "exportEvent()")}</div></div>`)}` : ""}<div style="height:20px"></div>${panel("电网分析模块 · 输入与检查范围", `<div class="card-pad"><div class="detailbox"><div><b>网络输入</b><p>示意母线与设备映射、假设变压器限额。尚无真实线路阻抗、电压与无功参数。</p></div><div><b>演示校核</b><p>${gridScreenLabel()}。未接入 AC 潮流，不声称电网安全验收。</p></div><div><b>恢复交付</b><p>事件、诊断依据、恢复建议、反馈状态及版本。有效反馈传递给调度模块形成关联新计划。</p></div></div></div>`, badge("负责人 · 高翰林"))}`;
 }
 function injectFault() {
   if (!dispatchReady()) return false;
@@ -723,10 +740,8 @@ function replan() {
     date: cfg.date,
     dataVersion: cfg.version,
   });
-  data = Engine.dataset(S.scenario);
-  draft = Engine.plans(data, S);
   S.objective = f.original.plan.key;
-  if (runPlan(f.feedback, f.original.id, f.original.plan.rows)) {
+  if (runPlan(f.feedback, f.original.id, f.original.plan.rows, f.original.intent)) {
     f.newId = S.current.id;
     S.page = "fault";
     render();
@@ -780,13 +795,12 @@ function openRecord(id) {
   Object.assign(S, {
     capacity: r.config.capacity,
     power: r.config.power,
-    budget: r.config.budget,
+    budget: r.intent ? S.budget : r.config.budget,
     scenario: r.config.scenario,
     date: r.config.date,
     dataVersion: r.config.version,
     objective: r.plan.key,
   });
-  data = Engine.dataset(S.scenario);
   draft = Engine.plans(data, S);
   S.missing = false;
   S.answer = "";
@@ -854,7 +868,7 @@ function showEvidence(type) {
                 ? `${data.carbonFactor.name}；广东2025年S1情景K-means聚类中心`
                 : "DEMO-C1 合成因子",
               carbon_boundary: "购电碳排，不含生命周期",
-              pv_kWp: 150,
+              pv_kWp: currentPvKwp(),
               battery_capacity_kWh: S.capacity,
               battery_power_kW: S.power,
               charge_efficiency: 0.95,
@@ -879,7 +893,7 @@ function showTeam() {
 → DEMO-F1 合成预测 + DEMO-C1 碳因子
 → 81 组候选权重扫描（非全局优化求解）
 → 独立功率 / 能量 / 费用 / 碳排复算
-→ 250 kW 有功限额筛查（非 AC 潮流）
+→ ${gridScreenLabel()}（非 AC 潮流）
 → ${S.current ? S.current.id + " / " + S.current.plan.name : "尚未生成计划"}
 → 规则解释 / 人工审阅 / 报告</pre>`,
   );
@@ -887,7 +901,7 @@ function showTeam() {
 function reportText(r) {
   if (interfaceLanguage === "en") return englishReportText(r);
   const v = Engine.verify(r.plan);
-  return `# EnergyOps 演示方案报告\n\n计划：${r.id}\n场景日期：${r.config.date}\n时区：Asia/Shanghai；粒度：1h\n目标：${r.plan.name}\n预测输出：${r.inputs?.forecast || "—"}\n参数输出：${r.inputs?.parameters || "—"}\n交接状态：导出不等于执行，本页面不发送控制指令。\n数据版本：DEMO-D${r.config.version}\n储能：${r.config.capacity} kWh / ${r.config.power} kW\n设备状态：${r.stateLabel}\n父计划：${r.parent || "无"}\n预计购电费用：${fmt(r.plan.cost, 2)} 元\n购电碳排：${fmt(r.plan.carbon, 2)} kgCO2\n弃光：${fmt(r.plan.curtail, 2)} kWh\n允许费用增幅：${r.config.budget}%（相对同设备状态的经济启发式基准）\n终态SOC：${fmt(r.plan.rows[23].soc, 2)}%\n独立复算：${v.ok ? "通过" : "失败"}；功率平衡最大残差 ${v.balance}\n电网检查：250 kW有功限额筛查${Math.max(...r.plan.rows.map((x) => x.grid)) <= 250 ? "通过" : "越限"}，未执行AC潮流\n人工审阅：${r.reviewed ? "已标记" : "待审阅"}\n\n## 数据与算法边界\n负荷、光伏和电价可为合成；碳因子为广东2025年S1情景K-means典型日中心，与负荷不是同一地点、同一年份的同步实测。规则启发式扫描81组权重，不保证全局最优；AI为规则解释，未接入在线模型。不下发设备控制，不证明真实节费、减排、故障检测效果或投资回报。\n\n## 分工\n韦佳伶：负荷与光伏预测；凌俊楷：碳因子与光储参数、调度参与；高翰林：电网与故障恢复；梁紫昱：调度、Agent、页面与集成。正式专业模型待接入。\n\n## 逐时计划\n\n时段,负荷kW,光伏kW,购电kW,充电kW,放电kW,SOC%,电价元/kWh,碳因子kgCO2/kWh\n${r.plan.rows.map((x) => [x.h, x.load, x.pv, x.grid.toFixed(3), x.charge.toFixed(3), x.discharge.toFixed(3), x.soc.toFixed(3), x.price, x.carbon].join(",")).join("\n")}\n`;
+  return `# EnergyOps 演示方案报告\n\n计划：${r.id}\n场景日期：${r.config.date}\n时区：Asia/Shanghai；粒度：1h\n目标：${r.plan.name}\n${r.intent ? "目标来源：DeepSeek Mock（本地规则）\n" : ""}预测输出：${r.inputs?.forecast || "—"}\n参数输出：${r.inputs?.parameters || "—"}\n交接状态：导出不等于执行，本页面不发送控制指令。\n数据版本：DEMO-D${r.config.version}\n光伏：${r.config.pvKwp} kWp\n储能：${r.config.capacity} kWh / ${r.config.power} kW\n设备状态：${r.stateLabel}\n父计划：${r.parent || "无"}\n预计购电费用：${fmt(r.plan.cost, 2)} 元\n购电碳排：${fmt(r.plan.carbon, 2)} kgCO2\n弃光：${fmt(r.plan.curtail, 2)} kWh\n允许费用增幅：${r.intent && r.intent.max_cost_increase_pct === null ? "未设置" : r.config.budget + "%（相对同设备状态的经济启发式基准）"}\n终态SOC：${fmt(r.plan.rows[23].soc, 2)}%\n独立复算：${v.ok ? "通过" : "失败"}；功率平衡最大残差 ${v.balance}\n电网检查：${r.config.gridLimitKw == null ? "接入限额待电网组确认" : r.config.gridLimitKw + " kW 有功限额 · " + (Math.max(...r.plan.rows.map((x) => x.grid)) <= r.config.gridLimitKw ? "通过" : "越限")}，未执行AC潮流\n人工审阅：${r.reviewed ? "已标记" : "待审阅"}\n\n## 数据与算法边界\n负荷、光伏和电价可为合成；碳因子为广东2025年S1情景K-means典型日中心，与负荷不是同一地点、同一年份的同步实测。规则启发式扫描81组权重，不保证全局最优；方案解释由固定规则生成。不下发设备控制，不证明真实节费、减排、故障检测效果或投资回报。\n\n## 分工\n韦佳伶：负荷与光伏预测；凌俊楷：碳因子与光储参数、调度参与；高翰林：电网与故障恢复；梁紫昱：调度、Agent、页面与集成。正式专业模型待接入。\n\n## 逐时计划\n\n时段,负荷kW,光伏kW,购电kW,充电kW,放电kW,SOC%,电价元/kWh,碳因子kgCO2/kWh\n${r.plan.rows.map((x) => [x.h, x.load, x.pv, x.grid.toFixed(3), x.charge.toFixed(3), x.discharge.toFixed(3), x.soc.toFixed(3), x.price, x.carbon].join(",")).join("\n")}\n`;
 }
 function download(name, text, type = "text/markdown;charset=utf-8") {
   if (interfaceLanguage === "en") name = englishFilename(name);
@@ -1003,6 +1017,7 @@ function resetDemo() {
   S.page = "forecast";
   S.outputs = { forecast: null, parameters: null };
   S.scenario = "sunny";
+  S.planningPvKwp = 6000;
   S.capacity = 320;
   S.power = 60;
   S.budget = 5;

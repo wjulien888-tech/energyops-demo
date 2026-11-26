@@ -155,15 +155,52 @@ function safeText(v) {
       ],
   );
 }
+function stabilityOperatingPoint() {
+  const record = S.current;
+  if (!recordInputsReady(record)) return null;
+  const hour = S.stabilityHour ?? 12;
+  const row = record.plan.rows[hour];
+  return {
+    kind: "stability-operating-point",
+    park_id: "campus-demo",
+    plan_id: record.id,
+    analysis_date: record.config.date,
+    data_version: record.config.version,
+    hour,
+    pv_kWp: record.config.pvKwp,
+    capacity_kWh: record.config.capacity,
+    power_kW: record.config.power,
+    grid_limit_kW: record.config.gridLimitKw,
+    load_kW: row.load,
+    pv_available_kW: row.pv,
+    pv_used_kW: row.pv - row.curtail,
+    battery_charge_kW: row.charge,
+    battery_discharge_kW: row.discharge,
+    battery_end_soc_pct: row.soc,
+    grid_import_kW: row.grid,
+  };
+}
+function exportStabilityPoint() {
+  const point = stabilityOperatingPoint();
+  if (point) download(`${point.plan_id}-operating-point.json`, JSON.stringify(point, null, 2), "application/json");
+}
 function acceptSafety(result, filename) {
   if (
     result.kind !== "stability-result" ||
     result.park_id !== "campus-demo" ||
     result.capacity_kWh !== S.capacity ||
     result.power_kW !== S.power ||
-    result.pv_kWp !== 150
+    result.pv_kWp !== currentPvKwp()
   )
     throw Error("模型资产参数与当前配置不一致");
+  const point = stabilityOperatingPoint();
+  if (S.jointForecast && (!point || result.plan_id !== point.plan_id ||
+      result.analysis_date !== point.analysis_date || result.data_version !== point.data_version ||
+      result.hour !== point.hour))
+    throw Error("模型结果须匹配当前计划、日期、版本和小时");
+  const available = result.battery_available_kW;
+  if (available !== undefined && (!Number.isFinite(available) || available < 0 || available > S.power))
+    throw Error("反馈中的储能可用功率超出设备范围");
   const time = result.time_s;
   if (
     !Array.isArray(time) ||
@@ -196,22 +233,68 @@ function acceptSafety(result, filename) {
     series: present,
   };
 }
+function storageFeedbackReady(point) {
+  const result = S.safety;
+  const rolling = S.current?.hourlyFeedback;
+  const elapsed = rolling?.history.length ?? 0;
+  return point && result && S.current.plan.state === "normal" &&
+    result.configurationKey === parameterInputKey() &&
+    result.plan_id === point.plan_id && result.hour === point.hour &&
+    elapsed === point.hour + 1 && elapsed < 24 &&
+    Number.isFinite(result.battery_available_kW) &&
+    rolling.limits?.availablePower !== result.battery_available_kW;
+}
+function applyStabilityFeedback() {
+  const point = stabilityOperatingPoint();
+  if (!storageFeedbackReady(point)) return;
+  const record = S.current;
+  const updated = Engine.applyStorageFeedback(
+    data, record.config, record.plan, record.hourlyFeedback, S.safety.battery_available_kW,
+  );
+  if (!Engine.verify(updated.plan).ok) {
+    toast("滚动方案复算失败");
+    return;
+  }
+  record.hourlyFeedback = { ...updated, gridFeedback: { hour: point.hour, modelVersion: S.safety.model_version } };
+  go("dispatch");
+}
 function safetyPanel() {
   const r = S.safety,
-    valid = r && r.configurationKey === parameterInputKey();
+    point = stabilityOperatingPoint(),
+    valid = r && r.configurationKey === parameterInputKey() &&
+      (!S.jointForecast || (point && r.plan_id === point.plan_id && r.hour === point.hour));
+  const operatingPoint = point ? `<div class="note-line">
+    <label for="stability-hour">运行点小时</label>
+    <select id="stability-hour" onchange="S.stabilityHour=Number(this.value);render()">
+    ${S.current.plan.rows.map(row => `<option value="${row.h}" ${row.h === point.hour ? "selected" : ""}>${String(row.h).padStart(2, "0")}:00</option>`).join("")}
+    </select>
+    <p>${point.plan_id} · ${point.analysis_date} · ${point.pv_kWp} kWp · ${point.power_kW} kW / ${point.capacity_kWh} kWh</p>
+    <p>负荷 ${fmt(point.load_kW)} kW · 光伏利用 ${fmt(point.pv_used_kW)} kW · 购电 ${fmt(point.grid_import_kW)} kW · SOC ${fmt(point.battery_end_soc_pct)}%</p>
+    ${btn("导出运行点", "exportStabilityPoint()", "small")}
+    </div>` : '<p class="note-line">生成调度方案后可选择并导出运行点。</p>';
   return panel(
     "园区微电网稳定性验证",
-    `<div class="card-pad"><div class="scope-strip">对象：园区内部微电网　｜　长时段调度与短时段动态控制分别验证</div><div class="actions">${btn("导入模型结果", "readResultFile('safety')", "small")}${btn("结果格式", "showResultSchema('safety')", "small")}</div>${valid ? `<div class="note-line">来源文件：${safeText(sourceText(r.filename, "Imported result file"))}　模型版本：${safeText(sourceText(r.model_version, "Imported model version"))}　工况：${safeText(sourceText(r.case_name, "Imported source case"))}</div>${r.series.map((k) => chart([{ name: { frequency_Hz: "频率", bus_power_kW: "母线功率", voltage_V: "电压", current_A: "电流" }[k], values: r[k], color: colors.load }], { frequency_Hz: "Hz", bus_power_kW: "kW", voltage_V: "V", current_A: "A" }[k], 170, { times: r.time_s })).join("")}<div class="note-line">${safeText(sourceText(r.assessment || "未提供验收判据，不判定为稳定性通过。", "Source assessment supplied in another language; refer to the original file."))}　导入仅展示数值结果，不验证模型真实性。</div>` : '<div class="empty">暂无控制模型验证结果</div>'}<div class="detailbox"><div><b>预测与参数</b><p>提供同一园区、窗口和设备配置。</p></div><div><b>调度方案</b><p>给出逐时计划，独立复算不能替代动态稳定性验证。</p></div><div><b>控制研究</b><p>展示频率、母线功率及电压/电流响应；正式结果与判据由模块负责人提供。</p></div></div></div>`,
+    `<div class="card-pad"><div class="scope-strip">对象：园区内部微电网　｜　长时段调度与短时段动态控制分别验证</div><div class="actions">${btn("导入模型结果", "readResultFile('safety')", "small")}${btn("结果格式", "showResultSchema('safety')", "small")}</div>${operatingPoint}${valid && Number.isFinite(r.battery_available_kW) ? `<div class="note-line">
+    <p>模型反馈储能可用功率 · ${fmt(r.battery_available_kW)} kW</p>
+    <p>仿真执行到所选小时结束后，可以应用反馈重算。</p>
+    ${btn("应用功率反馈并重算", "applyStabilityFeedback()", "small", !storageFeedbackReady(point))}
+    </div>` : ""}${valid ? `<div class="note-line">来源文件：${safeText(sourceText(r.filename, "Imported result file"))}　模型版本：${safeText(sourceText(r.model_version, "Imported model version"))}　工况：${safeText(sourceText(r.case_name, "Imported source case"))}</div>${r.series.map((k) => chart([{ name: { frequency_Hz: "频率", bus_power_kW: "母线功率", voltage_V: "电压", current_A: "电流" }[k], values: r[k], color: colors.load }], { frequency_Hz: "Hz", bus_power_kW: "kW", voltage_V: "V", current_A: "A" }[k], 170, { times: r.time_s })).join("")}<div class="note-line">${safeText(sourceText(r.assessment || "未提供验收判据，不判定为稳定性通过。", "Source assessment supplied in another language; refer to the original file."))}　导入仅展示数值结果，不验证模型真实性。</div>` : '<div class="empty">暂无控制模型验证结果</div>'}<div class="detailbox"><div><b>预测与参数</b><p>提供同一园区、窗口和设备配置。</p></div><div><b>调度方案</b><p>给出逐时计划，独立复算不能替代动态稳定性验证。</p></div><div><b>控制研究</b><p>展示频率、母线功率及电压/电流响应；正式结果与判据由模块负责人提供。</p></div></div></div>`,
     badge("负责人 · 高翰林"),
   );
 }
 function showResultSchema() {
+  const point = stabilityOperatingPoint();
   const content = {
     kind: "stability-result",
     park_id: "campus-demo",
     capacity_kWh: S.capacity,
     power_kW: S.power,
-    pv_kWp: 150,
+    pv_kWp: currentPvKwp(),
+    plan_id: point?.plan_id ?? null,
+    analysis_date: point?.analysis_date ?? null,
+    data_version: point?.data_version ?? null,
+    hour: point?.hour ?? null,
+    battery_available_kW: S.power,
     model_version: "由负责人填写",
     case_name: "由负责人填写",
     time_s: [0, 0.1, 0.2],

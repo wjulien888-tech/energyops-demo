@@ -2,14 +2,16 @@
 
 这是会议修订版的前端展示接入口，不是控制器、潮流求解器或现场API。
 
-在“故障恢复管理”的“园区微电网稳定性验证”中点击“导入模型结果”，选择JSON文件。文件最大5MB。
+在“故障恢复管理”的“园区微电网稳定性验证”中，先从已生成的日前计划选择运行点小时并导出 JSON。电网组以该文件对齐设备与计划，在同一页面导入结果。文件最大 5 MB。
 
 必需字段：
 
 - `kind`: `stability-result`
 - `park_id`: `campus-demo`
 - `capacity_kWh`、`power_kW`：与当前输出的储能参数相同。
-- `pv_kWp`: 150（当前演示配置）。
+- `pv_kWp`：与当前方案光伏装机相同（主线为 6000 kWp）。
+- 联合预测场景须与导出文件的 `plan_id`、`analysis_date`、`data_version` 和 `hour` 一致。
+- 可选 `battery_available_kW`：电网组给出的后续储能可用功率，范围为 0 到额定功率。仿真推进到导出的小时结束后，可把该约束应用到剩余时段，已执行记录保留。
 - `time_s`: 严格递增、非负的秒时间序列，2—2000点。
 - 至少一组与时间轴等长的有限数值：`frequency_Hz`、`bus_power_kW`、`voltage_V`、`current_A`。
 - 建议提供 `model_version`、`case_name`、`assessment`，说明工况、指标范围、判据与结果。
