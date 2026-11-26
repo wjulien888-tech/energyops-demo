@@ -84,14 +84,13 @@ const translations = {
   用自然语言指定调度目标: "Describe your dispatch objective",
   管理人员需求: "Manager request",
   "优先减碳，但购电费用比经济基准最多增加 3%": "Prioritize emissions reductions with a purchase cost increase of at most 3%.",
-  正在解析需求: "Interpreting request",
+  "DeepSeek Mock · 本地规则解析": "DeepSeek Mock · Local rules",
   解析并生成方案: "Interpret and generate plan",
   请输入调度需求: "Enter a dispatch request",
-  "请明确经济优先、低碳优先或低碳方案的费用增幅上限": "Specify cost priority, emissions priority, or a cost increase limit for lower emissions",
-  "DeepSeek 解析服务不可用，请检查本地服务配置": "DeepSeek is unavailable. Check the local service configuration.",
+  "请选择电费优先、低碳优先，或指定 0–30% 的减碳费用增幅上限": "Choose lowest cost, lower emissions, or lower emissions with a 0–30% cost cap",
   调度方案复算失败: "Dispatch verification failed",
   按需求生成的调度方案: "Requested dispatch plan",
-  "DeepSeek 解析目标": "Objective interpreted by DeepSeek",
+  模拟解析目标: "Objective interpreted by the mock",
   相对经济基准的费用增幅上限: "Cost increase limit relative to the economic baseline",
   "校园 3D 数字孪生": "Campus 3D digital twin",
   逐小时反馈仿真: "Hourly feedback simulation",
@@ -604,7 +603,7 @@ Analysis date: ${r.config.date}
 Timezone: Asia/Shanghai
 Interval: 1 hour
 Objective: ${translateText(p.name)}
-${r.intent ? "Objective source: DeepSeek intent parsing\n" : ""}Forecast output: ${r.inputs.forecast}
+${r.intent ? "Objective source: DeepSeek mock (local rules)\n" : ""}Forecast output: ${r.inputs.forecast}
 Parameter output: ${r.inputs.parameters}
 Data version: DEMO-D${r.config.version}
 Battery: ${r.config.capacity} kWh / ${r.config.power} kW

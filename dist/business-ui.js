@@ -269,7 +269,6 @@ function hourlyFeedbackPanel() {
       `<tr><td>${String(row.h).padStart(2, "0")}:00</td><td>${row.h < executed ? "已执行" : "更新后计划"}</td><td>${fmt(row.load)}</td><td>${fmt(row.pv)}</td><td>${fmt(row.soc)}</td><td>${fmt(row.grid)}</td></tr>`).join("")}</tbody></table></div>` : ""}
     </div>`, `<div class="actions">${btn("推进 1 小时", "advanceHourlyFeedback()", "small", S.missing || executed === 24)}${btn("运行至日末", "advanceHourlyFeedback(true)", "small", S.missing || executed === 24)}</div>`);
 }
-let intentRequestPending = false;
 const dispatchPromptOptions = [
   ["电费优先", "以全天购电费用最低为目标生成调度方案。"],
   ["低碳优先", "以全天购电碳排最低为目标生成调度方案。"],
@@ -279,71 +278,66 @@ const dispatchPromptOptions = [
 function selectDispatchPrompt(index) {
   const input = $("#dispatch-prompt");
   const option = dispatchPromptOptions[index];
-  if (!input || !option || intentRequestPending) return;
+  if (!input || !option) return;
   input.value = translateText(option[1]);
   input.focus?.();
 }
 function dispatchIntentPanel() {
   return panel("用自然语言指定调度目标", `<div class="card-pad">
+    <p class="sub">DeepSeek Mock · 本地规则解析</p>
     <div class="field"><label for="dispatch-prompt">管理人员需求</label>
     <textarea id="dispatch-prompt" rows="3" maxlength="4000" placeholder="优先减碳，但购电费用比经济基准最多增加 3%"></textarea></div>
     <div class="actions dispatch-prompt-options" aria-label="常用调度需求">
     ${dispatchPromptOptions.map(([label], index) =>
-      btn(label, `selectDispatchPrompt(${index})`, "small outline-blue", intentRequestPending),
+      btn(label, `selectDispatchPrompt(${index})`, "small outline-blue"),
     ).join("")}
     </div>
-    <div class="actions">${btn(intentRequestPending ? "正在解析需求" : "解析并生成方案", "generateFromPrompt()", "primary", intentRequestPending || S.missing)}</div>
+    <div class="actions">${btn("解析并生成方案", "generateFromPrompt()", "primary", S.missing)}</div>
   </div>`);
 }
-async function generateFromPrompt() {
-  if (intentRequestPending) return;
+function parseMockDispatchIntent(message) {
+  const text = message.normalize("NFKC").toLowerCase();
+  if (/馈电|反送电|电池容量|储能容量|充放电功率|export to (?:the )?grid|feed.?in|battery capacity|battery power/.test(text)) {
+    return null;
+  }
+
+  const carbon = /低碳|减碳|降碳|减排|碳排|emissions?|carbon/.test(text);
+  const cost = /电费|费用|成本|\bcosts?\b|\bbudget\b/.test(text);
+  const costPriority = /(?:电费|费用|成本|经济)(?:最低|最小|优先)|最低(?:电费|费用|成本)|(?:降低|减少|最小化)(?:全天)?(?:购电)?(?:电费|费用|成本)|省电费|(?:lowest|minimum|reduce|minimi[sz]e).*\bcosts?\b|\bcost priority\b|\beconomic\b/.test(text);
+  const cap = /最多|不超过|不能超过|不得超过|上限|以内|至多|at most|no more than|(?:not|never) exceed|within|\bcap\b|\blimit\b/.test(text);
+  if (cap || /%|\bpercent\b|百分之/.test(text)) {
+    const percentages = Array.from(text.matchAll(/([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*(?:%|percent\b)|百分之\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))/g));
+    if (!carbon || !cost || !cap || percentages.length !== 1) return null;
+    const budget = Number(percentages[0][1] ?? percentages[0][2]);
+    return budget >= 0 && budget <= 30
+      ? { objective: "balanced", max_cost_increase_pct: budget }
+      : null;
+  }
+  if (carbon === costPriority) return null;
+  return { objective: carbon ? "green" : "economic", max_cost_increase_pct: null };
+}
+
+function generateFromPrompt() {
   const message = $("#dispatch-prompt")?.value.trim();
   if (!message) {
     toast("请输入调度需求");
     return;
   }
-  if (!applyFilters(true) || !dispatchReady() || S.missing) return;
-  const { forecast, parameters } = S.outputs;
-  const previousPlan = S.current;
-  const previousObjective = S.objective;
-  intentRequestPending = true;
-  render();
-  let created = false;
-  try {
-    const response = await fetch("/api/dispatch-intent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message }),
-    });
-    if (!response.ok) throw new Error("Dispatch intent service unavailable");
-    const intent = await response.json();
-    if (S.page !== "dispatch" || !dispatchReady() || S.missing ||
-        S.outputs.forecast !== forecast || S.outputs.parameters !== parameters ||
-        S.current !== previousPlan || S.objective !== previousObjective) return;
-    const { objective, max_cost_increase_pct: budget } = intent;
-    const valid = objective === "balanced"
-      ? Number.isFinite(budget) && budget >= 0 && budget <= 30
-      : ["economic", "green"].includes(objective) && budget === null;
-    if (!valid) {
-      toast("请明确经济优先、低碳优先或低碳方案的费用增幅上限");
-      return;
-    }
-    created = runPlan("normal", null, null, intent);
-  } catch {
-    toast("DeepSeek 解析服务不可用，请检查本地服务配置");
-  } finally {
-    intentRequestPending = false;
-    if (S.page === "dispatch") {
-      render();
-      const input = $("#dispatch-prompt");
-      if (input && !created) input.value = message;
-    }
+  const intent = parseMockDispatchIntent(message);
+  if (!intent) {
+    toast("请选择电费优先、低碳优先，或指定 0–30% 的减碳费用增幅上限");
+    return;
   }
+  if (applyFilters(true) && dispatchReady() && !S.missing) {
+    runPlan("normal", null, null, intent);
+  }
+  const input = $("#dispatch-prompt");
+  if (input) input.value = message;
 }
 function promptPlanSummary(plan, intent) {
   const budget = intent.max_cost_increase_pct;
   return panel("按需求生成的调度方案", `<div class="card-pad">
-    <p>DeepSeek 解析目标 · <strong>${plan.name}</strong></p>
+    <p>模拟解析目标 · <strong>${plan.name}</strong></p>
     ${budget === null ? "" : `<p>相对经济基准的费用增幅上限 · ${fmt(budget, 2)}%</p>`}
     <p>预计购电费用 ${fmt(plan.cost, 2)} 元 · 预计购电碳排 ${fmt(plan.carbon, 2)} kgCO₂</p>
   </div>`);
