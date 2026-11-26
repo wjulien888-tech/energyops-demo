@@ -75,4 +75,4 @@ python3 -m http.server 8766 --bind 127.0.0.1 --directory dist
 
 Node.js 18 或更新版本可运行 `npm test` 和 `npm run check`。后端测试命令为 `python3 -m unittest discover -s tests -p "test_*.py"`。修改页面素材后运行 `npm run prepare:site` 更新缓存版本。协作范围见[团队协作说明](docs/CONTRIBUTING.md)和[模型接入建议](docs/MODEL_INTEGRATION.md)。
 
-推送到 `main` 后，[GitHub Actions](https://github.com/zoeliang0810-prog/energyops-video/actions/workflows/checks.yml) 运行前端测试和检查，通过后自动将 `dist/` 发布到 GitHub Pages。也可以在 Actions 页面手动运行该工作流。
+推送到 `main` 后，[GitHub Actions](https://github.com/zoeliang0810-prog/energyops-video/actions/workflows/checks.yml) 运行前端测试和检查，通过后自动将 `dist/` 发布到 GitHub Pages。发布结果可在 Actions 页面查看。测试未通过时，线上继续提供上一次成功发布的版本。也可以从 Actions 页面手动发布 `main`。
