@@ -4,7 +4,7 @@ EnergyOps 从零碳校园建设前的**光储配置模拟**切入，最终面向
 
 GitHub `main` 包含当前完整 Demo。配置比较、预测、调度、逐小时反馈、电网结果导入和校园 3D 场景均可从克隆的仓库运行。自然语言入口使用浏览器内的 DeepSeek Mock，无需密钥。
 
-[已发布演示站点](https://energyops-campus-demo.w-julien888.chatgpt.site/) · [项目故事视频](outputs/video/energyops_demo.mp4) · [中文字幕](outputs/video/energyops_demo.zh-CN.srt)
+[在线 Demo · GitHub Pages](https://zoeliang0810-prog.github.io/energyops-video/) · [项目故事视频](outputs/video/energyops_demo.mp4) · [中文字幕](outputs/video/energyops_demo.zh-CN.srt)
 
 ## 完整 Demo 怎么运行
 
@@ -75,4 +75,4 @@ python3 -m http.server 8766 --bind 127.0.0.1 --directory dist
 
 Node.js 18 或更新版本可运行 `npm test` 和 `npm run check`。后端测试命令为 `python3 -m unittest discover -s tests -p "test_*.py"`。修改页面素材后运行 `npm run prepare:site` 更新缓存版本。协作范围见[团队协作说明](docs/CONTRIBUTING.md)和[模型接入建议](docs/MODEL_INTEGRATION.md)。
 
-GitHub 用于代码与文档协作。公开站点由 Sites 托管，需要独立发布。
+代码和文档保存在 `main`，GitHub Pages 从 `gh-pages` 分支根目录发布静态 Demo。更新线上版本时，从已确认的 `main` 提交提取 `dist/` 并更新发布分支。
