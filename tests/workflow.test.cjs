@@ -145,3 +145,78 @@ for (const unit of ["kW", "%", "kgCO₂/kWh", "元/kWh"]) {
 console.log(
   "Output visibility and y-axis units passed: initial, output, invalidation and all four unit types.",
 );
+
+
+// Simulated feedback runs through the regular dispatch page and freezes each elapsed hour.
+const rolling = boot();
+rolling.field("#cap", 320);
+rolling.field("#power", 60);
+rolling.run('outputForecast(); saveAssets(); go("dispatch"); runPlan()');
+assert.match(rolling.nodes.get("#app").innerHTML, /推进 1 小时/);
+const dayAhead = rolling.run("JSON.stringify(S.current.plan)");
+rolling.run("advanceHourlyFeedback(); advanceHourlyFeedback()");
+assert.equal(rolling.run("S.current.hourlyFeedback.history.length"), 2);
+const executed = rolling.run("JSON.stringify(S.current.hourlyFeedback.history)");
+assert.equal(rolling.run(`(() => {
+  const { history, plan } = S.current.hourlyFeedback;
+  return history[1].actual.load !== history[1].planned.load
+    && plan.rows[2].load !== S.current.plan.rows[2].load
+    && Math.abs(plan.rows[2].energy - (history[1].actual.energy
+      + plan.rows[2].charge * 0.95 - plan.rows[2].discharge / 0.95)) < 1e-6;
+})()`), true);
+rolling.run("advanceHourlyFeedback(true); advanceHourlyFeedback()");
+assert.equal(rolling.run("S.current.hourlyFeedback.history.length"), 24);
+assert.equal(rolling.run("JSON.stringify(S.current.hourlyFeedback.history.slice(0, 2))"), executed);
+assert.equal(rolling.run("JSON.stringify(S.current.plan)"), dayAhead);
+assert.equal(rolling.run("Engine.verify(S.current.hourlyFeedback.plan).ok"), true);
+rolling.run('choose("green")');
+assert.equal(rolling.run("S.current.hourlyFeedback"), undefined);
+console.log("Hourly rolling simulation: feedback, SOC continuity and frozen history passed.");
+
+
+function testPromptDispatch() {
+  const w = boot();
+  const parse = (message) => JSON.parse(w.run(`JSON.stringify(parseMockDispatchIntent(${JSON.stringify(message)}))`));
+  for (const language of ["zh", "en"]) {
+    w.run(`interfaceLanguage = "${language}"`);
+    w.field("#dispatch-prompt", "");
+    for (const [index, objective, limit] of [
+      [0, "economic", null], [1, "green", null], [2, "balanced", 3], [3, "balanced", 5],
+    ]) {
+      w.run(`selectDispatchPrompt(${index})`);
+      assert.deepEqual(parse(w.nodes.get("#dispatch-prompt").value), {
+        objective, max_cost_increase_pct: limit,
+      });
+    }
+  }
+  assert.deepEqual(parse("尽量减碳，电费涨幅不超过 ７.５％"), {
+    objective: "balanced", max_cost_increase_pct: 7.5,
+  });
+  assert.equal(parse("低碳优先，电费最多增加 31%"), null);
+  assert.equal(parse("低碳优先，电费不能超过 100 元"), null);
+  assert.equal(parse("优先减碳，同时允许馈电"), null);
+  assert.equal(parse("经济优先，也要低碳优先"), null);
+  w.run('interfaceLanguage = "zh"');
+
+  w.field("#cap", 320);
+  w.field("#power", 60);
+  w.run('outputForecast(); saveAssets(); go("dispatch"); runPlan()');
+  assert.equal((w.nodes.get("#app").innerHTML.match(/class="scheme-row /g) || []).length, 3);
+  w.field("#dispatch-prompt", "低碳优先，费用最多增加 3%");
+  w.run('globalThis.fetch = () => { throw new Error("The mock must not use the network"); }');
+  w.run("generateFromPrompt()");
+  assert.equal(w.run("S.current.plan.key"), "balanced");
+  assert.equal(w.run("S.current.config.budget"), 3);
+  assert.doesNotMatch(w.nodes.get("#app").innerHTML, /class="scheme-row /);
+  assert.match(w.nodes.get("#app").innerHTML, /3\.00%/);
+  w.run("advanceHourlyFeedback()");
+  assert.equal(w.run("S.current.hourlyFeedback.plan.key"), "balanced");
+
+  const id = w.run("S.current.id");
+  w.field("#dispatch-prompt", "允许馈电");
+  w.run("generateFromPrompt()");
+  assert.equal(w.run("S.current.id"), id);
+  assert.equal(w.run("S.current.hourlyFeedback.history.length"), 1);
+  console.log("Prompt dispatch: offline mock, bilingual presets, single plan, hourly feedback and rejected intent passed.");
+}
+testPromptDispatch();

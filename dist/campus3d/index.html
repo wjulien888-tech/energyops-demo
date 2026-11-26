@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>港科大（广州）· 校园数字孪生三维模型</title>
+    <link rel="stylesheet" href="style.css" />
+    <script type="importmap">
+      { "imports": { "three": "./vendor/three.module.js" } }
+    </script>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+
+    <div id="boot">
+      <div class="boot-ring"></div>
+      <p>正在构建校园三维模型…</p>
+      <small>OpenStreetMap 轮廓 · 合成负荷与光伏仿真</small>
+    </div>
+
+    <!-- 左上：标题 -->
+    <header class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 20V9l6-4 6 4v11" />
+          <path d="M15 20V12l6-3v11" />
+          <path d="M2 20h20" />
+        </svg>
+      </div>
+      <div>
+        <h1>港科大（广州）· 校园数字孪生</h1>
+        <p id="brandMeta">48 栋建筑 · 真实轮廓 · 研究日 2026-02-19</p>
+      </div>
+    </header>
+
+    <!-- 左列：KPI -->
+    <section class="kpi-col" id="kpiCol">
+      <div class="clock-card">
+        <div class="clock-time" id="clockTime">12:00</div>
+        <div class="clock-sub">
+          <span id="clockDay">研究日 2026-02-19</span>
+          <span id="clockWeather">辐照 630 W/m²</span>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi">
+          <label>合成负荷</label>
+          <div class="kpi-val"><b id="kLoad">2.59</b><i>MW</i></div>
+          <div class="kpi-bar"><span id="kLoadBar"></span></div>
+        </div>
+        <div class="kpi">
+          <label>屋顶光伏</label>
+          <div class="kpi-val"><b id="kPv">5.03</b><i>MW</i></div>
+          <div class="kpi-bar pv"><span id="kPvBar"></span></div>
+        </div>
+        <div class="kpi">
+          <label>净负荷</label>
+          <div class="kpi-val"><b id="kNet">-2.44</b><i>MW</i></div>
+          <div class="kpi-bar net"><span id="kNetBar"></span></div>
+        </div>
+        <div class="kpi">
+          <label>储能 SOC</label>
+          <div class="kpi-val"><b id="kSoc">50</b><i>%</i></div>
+          <div class="kpi-bar soc"><span id="kSocBar"></span></div>
+        </div>
+      </div>
+      <div class="curtail" id="curtailCard">
+        <div class="curtail-head">
+          <span>弃光</span><b id="kCurtail">0 kW</b>
+        </div>
+        <p id="curtailNote">光伏出力高于负荷与储能消纳能力，多余电量需限发。</p>
+      </div>
+    </section>
+
+    <!-- 右上：控制 -->
+    <section class="controls">
+      <div class="seg" id="modeSeg" role="tablist" aria-label="图层">
+        <button data-mode="arch" class="on" role="tab">建筑</button>
+        <button data-mode="load" role="tab">负荷</button>
+        <button data-mode="pv" role="tab">光伏</button>
+        <button data-mode="flow" role="tab">潮流</button>
+      </div>
+      <div class="tools">
+        <button id="btnLabels" class="tool on" title="显示楼宇标注">标注</button>
+        <button id="btnNight" class="tool" title="夜间模式">夜间</button>
+        <button id="btnSpin" class="tool" title="自动环绕">环绕</button>
+        <button id="btnReset" class="tool" title="重置视角">复位</button>
+        <button id="btnGlb" class="tool accent" title="导出 GLB 模型">导出 GLB</button>
+      </div>
+    </section>
+
+    <!-- 右下：图例 -->
+    <section class="legend" id="legend">
+      <div id="loadLegend">
+        <div class="legend-row">
+          <span class="legend-title">负荷强度</span>
+          <div class="legend-scale">
+            <i style="--c: #2f6fd0"></i><i style="--c: #35d6e0"></i><i style="--c: #ffd166"></i
+            ><i style="--c: #ff8a4c"></i><i style="--c: #e05b55"></i>
+          </div>
+          <span class="legend-ends">低 → 高</span>
+        </div>
+        <div class="legend-row items">
+          <span><i class="dotpv"></i>屋顶光伏</span>
+          <span><i class="dotflow"></i>电力潮流</span>
+          <span><i class="dotep"></i>能源中心</span>
+        </div>
+      </div>
+      <div id="pvLegend" hidden>
+        <div class="legend-row"><span class="legend-title">光伏构成 · 当前出力</span></div>
+        <div class="pv-rows">
+          <span><i class="dpr"></i>屋面阵列<b id="pvRoofVal">0 kW</b><em>10.35 MWp · 物理模型</em></span>
+          <span><i class="dpc"></i>光伏车棚<b id="pvCarportVal">0 kW</b><em>0.90 MWp · 规划示意</em></span>
+          <span><i class="dpb"></i>幕墙 BIPV<b id="pvBipvVal">0 kW</b><em>2.67 MWp · 规划示意</em></span>
+        </div>
+        <p class="pv-note">车棚 / BIPV 无实测数据，出力按屋面光伏同曲线等比缩放</p>
+      </div>
+      <div id="flowLegend" hidden>
+        <div class="legend-row"><span class="legend-title">潮流方向</span></div>
+        <div class="flow-rows">
+          <span><i class="dotflow"></i>电网 → 楼栋（示意）</span>
+          <span><i class="dotpv"></i>屋面光伏 → 数据中心（示意）</span>
+        </div>
+        <p class="pv-note" id="flowStatus"></p>
+        <p class="pv-note">线路与供电关系按合成负荷和光伏模拟绘制，供场景示意。</p>
+      </div>
+        <p class="pv-note">潮流 = 电网功率流动方向；弧线越粗表示该楼宇用电越大</p>
+      </div>
+    </section>
+
+    <div class="compass" id="compass" aria-hidden="true">
+      <svg viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r="21" />
+        <g id="compassNeedle">
+          <path d="M24 8l5 16-5-4-5 4z" class="needle" />
+        </g>
+        <text x="24" y="44">N</text>
+      </svg>
+    </div>
+    <div class="scalebar"><span id="scaleLabel">200 m</span><i id="scaleBar"></i></div>
+
+    <!-- 底部：时间轴 -->
+    <section class="timeline">
+      <button id="btnPlay" class="play" aria-label="播放">
+        <svg viewBox="0 0 24 24"><path id="playIcon" d="M8 5l11 7-11 7z" /></svg>
+      </button>
+      <div class="tl-main">
+        <div class="tl-head">
+          <span>研究日负荷 / 光伏曲线</span>
+          <span class="tl-legend"><i class="l-load"></i>负荷<i class="l-pv"></i>光伏</span>
+        </div>
+        <div class="tl-chart" id="tlChart">
+          <svg id="tlSvg" preserveAspectRatio="none"></svg>
+          <div class="tl-cursor" id="tlCursor"></div>
+          <input id="tlRange" type="range" min="0" max="23" step="1" value="12" />
+        </div>
+        <div class="tl-ticks" id="tlTicks"></div>
+      </div>
+    </section>
+
+    <!-- 楼宇详情 -->
+    <aside class="detail" id="detail" hidden>
+      <button class="detail-close" id="detailClose" aria-label="关闭">×</button>
+      <div class="detail-cat" id="detailCat">实验楼</div>
+      <h2 id="detailName">W1</h2>
+      <dl id="detailList"></dl>
+      <div class="detail-foot">点击模型中的其他建筑可切换</div>
+    </aside>
+
+    <div class="hint" id="hint">拖拽旋转 · 滚轮缩放 · 点击建筑查看能耗</div>
+    <div class="provenance">
+      几何：OpenStreetMap © OSM contributors (ODbL) · 负荷：合成校园曲线，按建筑面积分配 · 光伏及潮流为模型或示意 ·
+      <b>simulation_only</b>
+    </div>
+
+    <script type="module" src="scene.js"></script>
+  </body>
+</html>
